@@ -1,0 +1,80 @@
+# =============================================================================
+# FINTECH PLATFORM - Backend Dependencies
+# Python 3.11+
+# =============================================================================
+
+# ── Framework web ─────────────────────────────────────────────────────────────
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+python-multipart==0.0.9
+websockets==12.0
+
+# ── Base de datos ─────────────────────────────────────────────────────────────
+sqlalchemy[asyncio]==2.0.30
+asyncpg==0.29.0                # driver async para PostgreSQL
+psycopg2-binary==2.9.9         # driver sync (para Alembic)
+alembic==1.13.1
+redis[hiredis]==5.0.4
+
+# ── Autenticación y seguridad ─────────────────────────────────────────────────
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+pydantic[email]==2.7.1
+pydantic-settings==2.2.1
+
+# ── Tareas asíncronas ─────────────────────────────────────────────────────────
+celery[redis]==5.4.0
+flower==2.0.1
+
+# ── APIs financieras ─────────────────────────────────────────────────────────
+httpx==0.27.0                  # cliente HTTP async
+aiohttp==3.9.5
+yfinance==0.2.40
+alpha-vantage==2.3.1
+finnhub-python==2.4.20
+python-binance==1.0.19
+
+# ── Análisis técnico ──────────────────────────────────────────────────────────
+pandas==2.2.2
+numpy==1.26.4
+pandas-ta==0.3.14b             # indicadores técnicos (RSI, MACD, BB, ATR, etc.)
+ta==0.11.0                     # backup de indicadores
+
+# ── Machine Learning ──────────────────────────────────────────────────────────
+scikit-learn==1.4.2
+xgboost==2.0.3
+lightgbm==4.3.0
+prophet==1.1.5                 # forecasting series temporales
+
+# ── Deep Learning (opcional en Fase 2) ───────────────────────────────────────
+# torch==2.3.0                 # descomentar en Fase 2
+# pytorch-forecasting==1.0.0
+
+# ── NLP y Sentimiento ─────────────────────────────────────────────────────────
+transformers==4.41.0           # HuggingFace (FinBERT)
+torch==2.3.0                   # requerido por transformers
+nltk==3.8.1
+textblob==0.18.0
+vaderSentiment==3.3.2          # rápido, sin GPU
+
+# ── Web scraping (módulo Argentina) ───────────────────────────────────────────
+beautifulsoup4==4.12.3
+lxml==5.2.2
+playwright==1.44.0             # scraping dinámico si es necesario
+
+# ── Notificaciones ────────────────────────────────────────────────────────────
+python-telegram-bot==21.3
+sendgrid==6.11.0
+twilio==9.1.0
+
+# ── Monitoreo y logging ───────────────────────────────────────────────────────
+structlog==24.1.0
+sentry-sdk[fastapi]==2.3.1
+
+# ── Utilidades ────────────────────────────────────────────────────────────────
+python-dotenv==1.0.1
+pytz==2024.1
+arrow==1.3.0
+orjson==3.10.3                 # JSON más rápido
+tenacity==8.3.0                # retry logic para APIs
+cachetools==5.3.3
