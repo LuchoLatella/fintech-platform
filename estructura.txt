@@ -1,0 +1,106 @@
+fintech-platform/
+├── .env.example
+├── .gitignore
+├── docker-compose.yml
+├── docker-compose.prod.yml
+├── Makefile
+│
+├── backend/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   ├── alembic.ini
+│   ├── alembic/
+│   │   └── versions/
+│   │       └── 001_initial_schema.py
+│   │
+│   └── app/
+│       ├── main.py                    # entrypoint FastAPI
+│       ├── config.py                  # settings con pydantic-settings
+│       ├── database.py                # conexión PostgreSQL + Redis
+│       │
+│       ├── models/                    # SQLAlchemy ORM models
+│       │   ├── __init__.py
+│       │   ├── user.py
+│       │   ├── asset.py
+│       │   ├── price.py
+│       │   ├── signal.py
+│       │   ├── portfolio.py
+│       │   ├── alert.py
+│       │   └── argentina.py
+│       │
+│       ├── schemas/                   # Pydantic schemas (request/response)
+│       │   ├── __init__.py
+│       │   ├── user.py
+│       │   ├── asset.py
+│       │   ├── signal.py
+│       │   └── portfolio.py
+│       │
+│       ├── routers/                   # Endpoints FastAPI
+│       │   ├── __init__.py
+│       │   ├── auth.py
+│       │   ├── market.py
+│       │   ├── analysis.py
+│       │   ├── signals.py
+│       │   ├── portfolio.py
+│       │   ├── alerts.py
+│       │   ├── argentina.py
+│       │   └── websockets.py
+│       │
+│       ├── services/                  # Lógica de negocio
+│       │   ├── __init__.py
+│       │   ├── market_data/
+│       │   │   ├── provider.py        # abstracción multi-API
+│       │   │   ├── alpha_vantage.py
+│       │   │   ├── yahoo_finance.py
+│       │   │   ├── finnhub.py
+│       │   │   ├── byma.py
+│       │   │   └── binance.py
+│       │   │
+│       │   ├── analysis/
+│       │   │   ├── technical.py       # RSI, MACD, BB, etc.
+│       │   │   ├── fundamental.py
+│       │   │   └── risk.py
+│       │   │
+│       │   ├── ai/
+│       │   │   ├── signal_engine.py
+│       │   │   ├── predictor.py
+│       │   │   └── sentiment.py
+│       │   │
+│       │   ├── argentina/
+│       │   │   ├── dolar.py
+│       │   │   ├── bcra.py
+│       │   │   └── bonos.py
+│       │   │
+│       │   └── notifications/
+│       │       ├── email.py
+│       │       └── telegram.py
+│       │
+│       ├── workers/                   # Celery tasks
+│       │   ├── __init__.py
+│       │   ├── celery_app.py
+│       │   ├── price_fetcher.py
+│       │   ├── indicator_calculator.py
+│       │   ├── signal_generator.py
+│       │   └── alert_checker.py
+│       │
+│       └── middleware/
+│           ├── auth.py
+│           └── rate_limit.py
+│
+└── frontend/
+    ├── package.json
+    ├── next.config.js
+    ├── tailwind.config.js
+    └── src/
+        ├── app/
+        │   ├── layout.tsx
+        │   ├── page.tsx               # dashboard principal
+        │   ├── signals/page.tsx
+        │   ├── portfolio/page.tsx
+        │   └── argentina/page.tsx
+        ├── components/
+        │   ├── charts/
+        │   ├── signals/
+        │   └── portfolio/
+        └── lib/
+            └── api.ts
