@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  background-color: #080C12;
+  color: #E8EDF5;
+  font-family: 'IBM Plex Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #0D1420; }
+::-webkit-scrollbar-thumb { background: #1C2A3A; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #3D5068; }
+
+/* Número con signo coloreado */
+.positive { color: #00E5A0; }
+.negative { color: #FF4D6A; }
+.neutral  { color: #7A8FA8; }
+
+/* Card base */
+.card {
+  background: #111926;
+  border: 1px solid #1C2A3A;
+  border-radius: 12px;
+}
+
+/* Badge de señal */
+.badge-buy    { background: rgba(0,229,160,.12); color: #00E5A0; border: 1px solid rgba(0,229,160,.25); }
+.badge-sell   { background: rgba(255,77,106,.12); color: #FF4D6A; border: 1px solid rgba(255,77,106,.25); }
+.badge-watch  { background: rgba(255,171,64,.12); color: #FFAB40; border: 1px solid rgba(255,171,64,.25); }
+.badge-hold   { background: rgba(61,154,255,.12); color: #3D9AFF; border: 1px solid rgba(61,154,255,.25); }
+.badge-avoid  { background: rgba(167,139,250,.12); color: #A78BFA; border: 1px solid rgba(167,139,250,.25); }
