@@ -37,7 +37,7 @@ python-binance==1.0.19
 # ── Análisis técnico ──────────────────────────────────────────────────────────
 pandas==2.2.2
 numpy==1.26.4
-pandas-ta==0.3.14b             # indicadores técnicos (RSI, MACD, BB, ATR, etc.)
+pandas-ta==0.3.14b0             # indicadores técnicos (RSI, MACD, BB, ATR, etc.)
 ta==0.11.0                     # backup de indicadores
 
 # ── Machine Learning ──────────────────────────────────────────────────────────
