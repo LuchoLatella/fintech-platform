@@ -110,24 +110,24 @@ services:
     command: celery -A app.workers.celery_app beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
 
   # ─── Frontend Next.js ─────────────────────────────────────────────────────
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: fintech_frontend
-    restart: unless-stopped
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_PUBLIC_WS_URL: ws://localhost:8000
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
-    depends_on:
-      - api
-    command: npm run dev
+ # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: fintech_frontend
+  #   restart: unless-stopped
+  #   environment:
+  #     NEXT_PUBLIC_API_URL: http://localhost:8000
+  #     NEXT_PUBLIC_WS_URL: ws://localhost:8000
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+  #     - /app/.next
+  #   depends_on:
+  #     - api
+  #   command: npm run dev
 
   # ─── Flower (monitor de Celery, solo dev) ────────────────────────────────
   flower:
