@@ -35,20 +35,26 @@ finnhub-python==2.4.20
 python-binance==1.0.19
 
 # ── Análisis técnico ──────────────────────────────────────────────────────────
+# ── Análisis técnico ──────────────────────────────────────────────────────────
 pandas==2.2.2
 numpy==1.26.4
-pandas-ta==0.3.14b0             # indicadores técnicos (RSI, MACD, BB, ATR, etc.)
-ta==0.11.0                     # backup de indicadores
+ta==0.11.0
+scikit-learn==1.4.2
+xgboost==2.0.3
+lightgbm==4.3.0
+# prophet==1.1.5
+# torch==2.3.0
+# transformers==4.41.0
 
 # ── Machine Learning ──────────────────────────────────────────────────────────
 scikit-learn==1.4.2
 xgboost==2.0.3
 lightgbm==4.3.0
-prophet==1.1.5                 # forecasting series temporales
+# prophet==1.1.5        ← comentado
 
-# ── Deep Learning (opcional en Fase 2) ───────────────────────────────────────
-# torch==2.3.0                 # descomentar en Fase 2
-# pytorch-forecasting==1.0.0
+# ── Deep Learning ────────────────────────────────────────────────────────────
+# torch==2.3.0          ← comentado
+# transformers==4.41.0  ← comentado
 
 # ── NLP y Sentimiento ─────────────────────────────────────────────────────────
 transformers==4.41.0           # HuggingFace (FinBERT)
