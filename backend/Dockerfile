@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Dependencias del sistema
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ libpq-dev curl && \
+    gcc g++ libpq-dev curl git && \
     rm -rf /var/lib/apt/lists/*
 
 # Dependencias Python
