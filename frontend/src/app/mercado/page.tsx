@@ -21,37 +21,38 @@ export default function MercadoPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
 
   useEffect(() => {
-    setAssets([
-      {
-        symbol: "AAPL",
-        name: "Apple",
-        price: 213.22,
-        change: 1.42,
-        volume: "82M",
-      },
-      {
-        symbol: "NVDA",
-        name: "NVIDIA",
-        price: 1023.15,
-        change: 4.31,
-        volume: "65M",
-      },
-      {
-        symbol: "TSLA",
-        name: "Tesla",
-        price: 187.11,
-        change: -2.12,
-        volume: "43M",
-      },
-      {
-        symbol: "BTC-USD",
-        name: "Bitcoin",
-        price: 67421,
-        change: 3.12,
-        volume: "18B",
-      },
-    ]);
-  }, []);
+  async function loadMarket() {
+    try {
+      const response = await fetch(
+        "http://localhost:8000/api/v1/market/quotes/batch?symbols=AAPL,NVDA,TSLA,BTC-USD"
+      );
+
+      const data = await response.json();
+
+      const formatted = data.quotes
+        .filter((q: any) => q.ok)
+        .map((q: any) => ({
+          symbol: q.symbol,
+          name: q.symbol,
+          price: Number(q.price || 0),
+          change: Number(q.change_pct || 0),
+          volume: q.volume
+            ? String(q.volume)
+            : "N/A",
+        }));
+
+      setAssets(formatted);
+
+    } catch (error) {
+      console.error(
+        "Error cargando mercado:",
+        error
+      );
+    }
+  }
+
+  loadMarket();
+}, []);
 
   const filtered = assets.filter(
     (a) =>
@@ -108,7 +109,7 @@ export default function MercadoPage() {
 
             <div className="space-y-2">
               <p className="text-3xl font-bold">
-                ${asset.price.toLocaleString()}
+                ${asset.price}
               </p>
 
               <div className="flex items-center justify-between">
