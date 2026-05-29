@@ -10,7 +10,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import settings
 from app.database import init_db, close_db
-from app.routers import auth, market, analysis, signals, portfolio, alerts, argentina, websockets
+from app.routers import auth, market, analysis, signals, portfolio, alerts, argentina, websockets, ml
 
 log = structlog.get_logger()
 
@@ -57,7 +57,7 @@ app.include_router(portfolio.router,  prefix=f"{API_PREFIX}/portfolio",  tags=["
 app.include_router(alerts.router,     prefix=f"{API_PREFIX}/alerts",     tags=["Alertas"])
 app.include_router(argentina.router,  prefix=f"{API_PREFIX}/argentina",  tags=["Módulo Argentina"])
 app.include_router(websockets.router, prefix="/ws/v1",                   tags=["WebSockets"])
-
+app.include_router(ml.router,         prefix=f"{API_PREFIX}/ml",         tags=["Machine Learning"])  
 
 @app.get("/health", tags=["Sistema"])
 async def health_check():
