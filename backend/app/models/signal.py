@@ -7,7 +7,7 @@ from typing import Optional
 
 from sqlalchemy import String, Boolean, DateTime, Text, Numeric, Integer, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -29,6 +29,10 @@ class AIModel(Base):
     metadata_: Mapped[Optional[dict]] = mapped_column("metadata", JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    signals = relationship(
+        "AISignal",
+        back_populates="model",
+    )
 
 class AISignal(Base):
 
@@ -261,5 +265,6 @@ class AISignal(Base):
 
     model = relationship(
         "AIModel",
+        back_populates="signals"
         lazy="joined",
     )
