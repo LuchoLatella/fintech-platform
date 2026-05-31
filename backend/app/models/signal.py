@@ -28,6 +28,7 @@ class AIModel(Base):
     trained_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     metadata_: Mapped[Optional[dict]] = mapped_column("metadata", JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now())
 
     signals = relationship(
         "AISignal",
@@ -40,41 +41,33 @@ class AISignal(Base):
 
     __table_args__ = (
 
-        # Histórico por activo
-        Index(
-            "ix_ai_signal_symbol_generated",
-            "symbol",
-            "generated_at",
-        ),
+    Index(
+        "ix_ai_signal_symbol_generated",
+        "symbol",
+        "generated_at",
+    ),
 
-        # Señales activas
-        Index(
-            "ix_ai_signal_active",
-            "is_active",
-        ),
+    Index(
+        "ix_ai_signal_active",
+        "is_active",
+    ),
 
-        # Ranking IA
-        Index(
-            "ix_ai_signal_confidence",
-            "confidence",
-        ),
+    Index(
+        "ix_ai_signal_confidence",
+        "confidence",
+    ),
 
-        # Scanner ranking
-        Index(
-            "ix_ai_signal_scanner_rank",
-            "scanner_rank",
-        ),
-    )
+    Index(
+        "ix_ai_signal_scanner_rank",
+        "scanner_rank",
+    ),
 
-    # ─────────────────────────────────────────────
-    # IDs
-    # ─────────────────────────────────────────────
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-    )
+    Index(
+        "ix_ai_signal_active_confidence",
+        "is_active",
+        "confidence",
+    ),
+)
 
     asset_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
