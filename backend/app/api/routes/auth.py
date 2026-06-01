@@ -1,14 +1,13 @@
-from pydantic import BaseModel, EmailStr
+from fastapi import APIRouter
 
-class RegisterRequest(BaseModel):
-email: EmailStr
-username: str
-password: str
+router = APIRouter(
+prefix="/auth",
+tags=["Authentication"]
+)
 
-class LoginRequest(BaseModel):
-email: EmailStr
-password: str
+@router.get("/health")
+async def health():
+return {
+"status": "ok"
+}
 
-class TokenResponse(BaseModel):
-access_token: str
-token_type: str = "bearer"
