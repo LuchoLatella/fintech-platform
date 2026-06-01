@@ -42,42 +42,43 @@ class AISignal(Base):
     __table_args__ = (
 
     Index(
-        "ix_ai_signal_symbol_generated",
-        "symbol",
-        "generated_at",
-    ),
+            "ix_ai_signal_symbol_generated",
+            "symbol",
+            "generated_at",
+        ),
 
-    Index(
-        "ix_ai_signal_active",
-        "is_active",
-    ),
+        Index(
+            "ix_ai_signal_active",
+            "is_active",
+        ),
 
-    Index(
-        "ix_ai_signal_confidence",
-        "confidence",
-    ),
+        Index(
+            "ix_ai_signal_confidence",
+            "confidence",
+        ),
 
-    Index(
-        "ix_ai_signal_scanner_rank",
-        "scanner_rank",
-    ),
+        Index(
+            "ix_ai_signal_scanner_rank",
+            "scanner_rank",
+        ),
 
-    Index(
-        "ix_ai_signal_active_confidence",
-        "is_active",
-        "confidence",
-    ),
-)
+        Index(
+            "ix_ai_signal_active_confidence",
+            "is_active",
+            "confidence",
+        ),
+    )
+
+    # PRIMARY KEY
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
 
     asset_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("assets.id"),
-    )
-
-    model_id: Mapped[Optional[int]] = mapped_column(
-        Integer,
-        ForeignKey("ai_models.id"),
-        nullable=True,
     )
 
     # ─────────────────────────────────────────────
