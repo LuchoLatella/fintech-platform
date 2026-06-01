@@ -40,15 +40,15 @@ pandas==2.2.2
 numpy==1.26.4
 ta==0.11.0
 scikit-learn==1.4.2
-xgboost==2.0.3
-lightgbm==4.3.0
+# xgboost==2.0.3
+# lightgbm==4.3.0
 # prophet==1.1.5
 # torch==2.3.0
 # transformers==4.41.0
 
 # ── Machine Learning ──────────────────────────────────────────────────────────
 scikit-learn==1.4.2
-xgboost==2.0.3
+# xgboost==2.0.3
 lightgbm==4.3.0
 # prophet==1.1.5        ← comentado
 
@@ -57,8 +57,8 @@ lightgbm==4.3.0
 # transformers==4.41.0  ← comentado
 
 # ── NLP y Sentimiento ─────────────────────────────────────────────────────────
-transformers==4.41.0           # HuggingFace (FinBERT)
-torch==2.3.0                   # requerido por transformers
+# transformers==4.41.0           # HuggingFace (FinBERT)
+# torch==2.3.0                   # requerido por transformers
 nltk==3.8.1
 textblob==0.18.0
 vaderSentiment==3.3.2          # rápido, sin GPU
