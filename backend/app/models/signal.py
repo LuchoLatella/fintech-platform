@@ -258,6 +258,6 @@ class AISignal(Base):
 
     model = relationship(
         "AIModel",
-        back_populates="signals"
+        back_populates="signals",
         lazy="joined",
     )
