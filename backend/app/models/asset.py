@@ -281,6 +281,11 @@ class Watchlist(Base):
         lazy="selectin",
     )
 
+    user = relationship(
+    "User",
+    back_populates="watchlists",
+    )
+
 
 # ─────────────────────────────────────────────────────────────
 # Watchlist Items
