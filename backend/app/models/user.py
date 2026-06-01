@@ -31,6 +31,7 @@ class User(Base):
 
     sessions: Mapped[list["UserSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     preferences: Mapped[Optional["UserPreferences"]] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
+    watchlists: Mapped[list["Watchlist"]] = relationship(back_populates="user", cascade="all, delete-orphan",)
 
 
 class UserSession(Base):
