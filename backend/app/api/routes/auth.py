@@ -7,7 +7,7 @@ tags=["Authentication"]
 
 @router.get("/health")
 async def health():
-return {
+    return {
 "status": "ok"
 }
 
