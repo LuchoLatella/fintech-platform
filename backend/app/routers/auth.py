@@ -378,4 +378,4 @@ async def get_me(
         is_verified=current_user.is_verified,
         created_at=str(current_user.created_at),
     )
-```
+
