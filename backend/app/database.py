@@ -34,7 +34,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise
@@ -60,7 +59,7 @@ async def init_db():
         decode_responses=True,
     )
     # Verificar conexión
-    await redis_client.ping()
+    #await redis_client.ping()
 
 
 async def close_db():
