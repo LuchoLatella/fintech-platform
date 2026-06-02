@@ -1,4 +1,3 @@
-```python
 """
 Router: Autenticación
 Endpoints: registro, login, refresh token, logout, perfil.
