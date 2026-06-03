@@ -81,6 +81,12 @@ class AISignal(Base):
         ForeignKey("assets.id"),
     )
 
+    model_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("ai_models.id"),
+        nullable=True,
+    )
+
     # ─────────────────────────────────────────────
     # Identificación
     # ─────────────────────────────────────────────
@@ -255,6 +261,13 @@ class AISignal(Base):
         "Asset",
         back_populates="signals",
         lazy="joined",
+    )
+
+    # AIModel
+
+    signals = relationship(
+        "AISignal",
+        back_populates="model",
     )
 
     model = relationship(
