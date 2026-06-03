@@ -265,10 +265,7 @@ class AISignal(Base):
 
     # AIModel
 
-    signals = relationship(
-        "AISignal",
-        back_populates="model",
-    )
+    
 
     model = relationship(
         "AIModel",

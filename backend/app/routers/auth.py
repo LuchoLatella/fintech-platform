@@ -166,35 +166,13 @@ async def get_current_user(
 # Endpoints
 # ─────────────────────────────────────────────────────────────
 
-@router.post(
-    "/register",
-    response_model=TokenResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/register")
 async def register(
     data: UserRegister,
-    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
 
-    from app.models.user import (
-        User,
-        UserPreferences,
-        UserSession,
-    )
-
-    existing = await db.execute(
-        select(User).where(
-            (User.email == data.email)
-            | (User.username == data.username)
-        )
-    )
-
-    if existing.scalar_one_or_none():
-        raise HTTPException(
-            status_code=400,
-            detail="Email o username ya registrado",
-        )
+    from app.models.user import User
 
     user = User(
         email=data.email,
@@ -205,45 +183,11 @@ async def register(
 
     db.add(user)
 
-    await db.flush()
-
-    prefs = UserPreferences(
-        user_id=user.id
-    )
-
-    db.add(prefs)
-
-    refresh = create_refresh_token(
-        str(user.id)
-    )
-
-    session = UserSession(
-        user_id=user.id,
-        refresh_token=refresh,
-        ip_address=(
-            str(request.client.host)
-            if request.client
-            else None
-        ),
-        expires_at=datetime.utcnow()
-        + timedelta(
-            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
-        ),
-    )
-
-    db.add(session)
-
     await db.commit()
 
-    return TokenResponse(
-        access_token=create_access_token(
-            str(user.id)
-        ),
-        refresh_token=refresh,
-        expires_in=(
-            settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        ),
-    )
+    return {
+        "message": "usuario creado"
+    }
 
 
 @router.post(
