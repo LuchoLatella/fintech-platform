@@ -19,6 +19,8 @@ from sqlalchemy import (
     Numeric,
     Integer,
     ForeignKey,
+    Index,
+    UniqueConstraint,
 )
 
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -120,6 +122,22 @@ class Asset(Base):
 
     __tablename__ = "assets"
 
+    __table_args__ = (
+
+        Index(
+            "ix_asset_symbol_exchange",
+            "symbol",
+            "exchange_id",
+        ),
+
+        UniqueConstraint(
+            "symbol",
+            "exchange_id",
+            name="uq_asset_symbol_exchange",
+        ),
+
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -205,7 +223,7 @@ class Asset(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
-
+    
     # ─────────────────────────────────────────────────────────
     # RELATIONSHIPS
     # ─────────────────────────────────────────────────────────
