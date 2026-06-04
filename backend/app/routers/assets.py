@@ -7,72 +7,68 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.asset import Asset
 from app.schemas.asset import (
-AssetCreate,
-AssetResponse,
+    AssetCreate,
+    AssetResponse,
 )
 
 router = APIRouter()
 
+
 @router.get(
-"/",
-response_model=list[AssetResponse],
+    "/",
+    response_model=list[AssetResponse],
 )
 async def get_assets(
-db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
+    result = await db.execute(
+        select(Asset)
+    )
 
+    return result.scalars().all()
 
-result = await db.execute(
-    select(Asset)
-)
-
-return result.scalars().all()
 
 @router.get(
-"/{asset_id}",
-response_model=AssetResponse,
+    "/{asset_id}",
+    response_model=AssetResponse,
 )
 async def get_asset(
-asset_id: UUID,
-db: AsyncSession = Depends(get_db),
+    asset_id: UUID,
+    db: AsyncSession = Depends(get_db),
 ):
-
-
-result = await db.execute(
-    select(Asset).where(
-        Asset.id == asset_id
-    )
-)
-
-asset = result.scalar_one_or_none()
-
-if not asset:
-    raise HTTPException(
-        status_code=404,
-        detail="Asset no encontrado",
+    result = await db.execute(
+        select(Asset).where(
+            Asset.id == asset_id
+        )
     )
 
-return asset
+    asset = result.scalar_one_or_none()
+
+    if not asset:
+        raise HTTPException(
+            status_code=404,
+            detail="Asset no encontrado",
+        )
+
+    return asset
 
 
 @router.post(
-"/",
-response_model=AssetResponse,
+    "/",
+    response_model=AssetResponse,
 )
 async def create_asset(
-data: AssetCreate,
-db: AsyncSession = Depends(get_db),
+    data: AssetCreate,
+    db: AsyncSession = Depends(get_db),
 ):
+    asset = Asset(
+        **data.model_dump()
+    )
 
+    db.add(asset)
 
-asset = Asset(
-    **data.model_dump()
-)
+    await db.commit()
 
-db.add(asset)
+    await db.refresh(asset)
 
-await db.commit()
-
-await db.refresh(asset)
-
-return asset
+    return asset
