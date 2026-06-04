@@ -4,98 +4,88 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+
 # ─────────────────────────────────────────────
-
 # Base
-
 # ─────────────────────────────────────────────
 
 class AssetBase(BaseModel):
 
+    symbol: str
+    name: str
 
-symbol: str
-name: str
+    exchange_id: Optional[int] = None
+    asset_class_id: Optional[int] = None
 
-exchange_id: Optional[int] = None
-asset_class_id: Optional[int] = None
+    description: Optional[str] = None
 
-description: Optional[str] = None
+    currency: str = "USD"
 
-currency: str = "USD"
+    isin: Optional[str] = None
 
-isin: Optional[str] = None
+    sector: Optional[str] = None
+    industry: Optional[str] = None
 
-sector: Optional[str] = None
-industry: Optional[str] = None
+    country: Optional[str] = None
 
-country: Optional[str] = None
+    is_active: bool = True
+    is_argentine: bool = False
 
-is_active: bool = True
-is_argentine: bool = False
+    underlying_symbol: Optional[str] = None
 
-underlying_symbol: Optional[str] = None
-
-ratio: Optional[float] = None
+    ratio: Optional[float] = None
 
 
 # ─────────────────────────────────────────────
-
 # Create
-
 # ─────────────────────────────────────────────
 
 class AssetCreate(AssetBase):
-pass
+    pass
+
 
 # ─────────────────────────────────────────────
-
 # Update
-
 # ─────────────────────────────────────────────
 
 class AssetUpdate(BaseModel):
 
+    symbol: Optional[str] = None
+    name: Optional[str] = None
 
-symbol: Optional[str] = None
-name: Optional[str] = None
+    exchange_id: Optional[int] = None
+    asset_class_id: Optional[int] = None
 
-exchange_id: Optional[int] = None
-asset_class_id: Optional[int] = None
+    description: Optional[str] = None
 
-description: Optional[str] = None
+    currency: Optional[str] = None
 
-currency: Optional[str] = None
+    isin: Optional[str] = None
 
-isin: Optional[str] = None
+    sector: Optional[str] = None
+    industry: Optional[str] = None
 
-sector: Optional[str] = None
-industry: Optional[str] = None
+    country: Optional[str] = None
 
-country: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_argentine: Optional[bool] = None
 
-is_active: Optional[bool] = None
-is_argentine: Optional[bool] = None
+    underlying_symbol: Optional[str] = None
 
-underlying_symbol: Optional[str] = None
-
-ratio: Optional[float] = None
+    ratio: Optional[float] = None
 
 
 # ─────────────────────────────────────────────
-
 # Response
-
 # ─────────────────────────────────────────────
 
 class AssetResponse(AssetBase):
 
+    model_config = ConfigDict(
+        from_attributes=True
+    )
 
-model_config = ConfigDict(
-    from_attributes=True
-)
+    id: UUID
 
-id: UUID
-
-created_at: datetime
-updated_at: Optional[datetime] = None
-
+    created_at: datetime
+    updated_at: Optional[datetime] = None

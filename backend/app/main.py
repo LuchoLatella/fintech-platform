@@ -10,7 +10,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import settings
 from app.database import init_db, close_db
-from app.routers import auth, market, analysis, signals, portfolio, alerts, argentina, websockets, assets#, universe#, ml
+from app.routers import auth, market, analysis, signals, portfolio, alerts, argentina, websockets, assets #, universe#, ml
 from app.api.routes.auth import router as auth_router
 
 log = structlog.get_logger()
