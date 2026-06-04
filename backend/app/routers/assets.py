@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.asset import Asset
 from app.schemas.asset import (
     AssetCreate,
+    AssetUpdate,
     AssetResponse,
 )
 
