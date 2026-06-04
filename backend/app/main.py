@@ -64,6 +64,7 @@ app.include_router(auth_router,      prefix=f"{API_PREFIX}/auth",      tags=["Au
 app.include_router(assets.router,    prefix="/api/v1/assets",    tags=["Assets"])
 app.include_router(watchlist.router, prefix="/api/v1/watchlist", tags=["Watchlist"])
 
+
 @app.get("/health", tags=["Sistema"])
 async def health_check():
     return {"status": "ok", "version": "1.0.0", "environment": settings.ENVIRONMENT}
