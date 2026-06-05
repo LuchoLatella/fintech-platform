@@ -27,6 +27,7 @@ class Portfolio(Base):
     broker_account: Mapped[Optional[str]] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    cash_balance: Mapped[float] = mapped_column(Numeric(20, 4), default=0)
 
 
 class PortfolioPosition(Base):
