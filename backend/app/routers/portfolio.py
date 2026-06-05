@@ -15,41 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, get_redis
 from app.routers.auth import get_current_user
+from app.schemas.portfolio import (PortfolioCreate, PortfolioUpdate, PortfolioResponse, TransactionCreate, TransactionResponse, PositionResponse, PortfolioSummary,)
 
 router = APIRouter()
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
-class PortfolioCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    currency: str = "USD"
-    portfolio_type: str = "real"
-    broker: Optional[str] = None
-
-class TransactionCreate(BaseModel):
-    asset_id: str
-    transaction_type: str        # buy | sell | dividend
-    quantity: float
-    price: float
-    commission: float = 0.0
-    currency: str = "USD"
-    fx_rate: float = 1.0
-    notes: Optional[str] = None
-    executed_at: datetime
-
-class PositionResponse(BaseModel):
-    asset_id: str
-    symbol: str
-    name: str
-    quantity: float
-    avg_cost: float
-    current_price: Optional[float]
-    market_value: Optional[float]
-    cost_basis: float
-    unrealized_pnl: Optional[float]
-    unrealized_pnl_pct: Optional[float]
-    weight: Optional[float]       # % del portafolio total
 
 
 # ── Portafolios ───────────────────────────────────────────────────────────────
@@ -76,25 +47,32 @@ async def list_portfolios(
     ]
 
 
-@router.post("/", status_code=201, summary="Crear portafolio")
+@router.post(
+    "/",
+    response_model=PortfolioResponse,
+)
 async def create_portfolio(
     data: PortfolioCreate,
-    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.models.portfolio import Portfolio
+
     portfolio = Portfolio(
-        user_id=current_user.id,
+        user_id=data.user_id,
         name=data.name,
         description=data.description,
         currency=data.currency,
         portfolio_type=data.portfolio_type,
+        is_default=data.is_default,
         broker=data.broker,
+        broker_account=data.broker_account,
     )
+
     db.add(portfolio)
+
     await db.commit()
     await db.refresh(portfolio)
-    return {"id": str(portfolio.id), "message": "Portafolio creado"}
+
+    return portfolio
 
 
 @router.delete("/{portfolio_id}", summary="Eliminar portafolio")

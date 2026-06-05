@@ -110,7 +110,7 @@ class MarketDataProvider:
                          start: Optional[datetime] = None, end: Optional[datetime] = None,
                          asset_class: str = "default") -> OHLCV:
         """Obtiene datos OHLCV históricos con fallback."""
-        cache_key = f"ohlcv:{symbol}:{timeframe}"
+        #cache_key = f"ohlcv:{symbol}:{timeframe}"
 
         sources = self.PRIORITY.get(asset_class, self.PRIORITY["default"])
 
