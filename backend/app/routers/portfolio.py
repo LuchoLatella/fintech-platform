@@ -17,7 +17,7 @@ from decimal import Decimal
 
 from app.database import get_db, get_redis
 from app.routers.auth import get_current_user
-from app.schemas.portfolio import (PortfolioCreate, PortfolioUpdate, PortfolioResponse, TransactionCreate, TransactionResponse, PositionResponse, PortfolioSummary,)
+from app.schemas.portfolio import (PortfolioCreate, PortfolioUpdate, PortfolioResponse, TransactionCreate, TransactionResponse, PositionResponse, PortfolioSummary, PortfolioHealth)
 from app.models.portfolio import Portfolio
 
 log = structlog.get_logger()
@@ -233,6 +233,67 @@ async def get_portfolio_summary(
         total_return=None,
         risk_score=None,
         recommendation_count=0,
+    )
+
+@router.get(
+    "/{portfolio_id}/health",
+    response_model=PortfolioHealth,
+    summary="Estado general del portafolio",
+)
+async def get_portfolio_health(
+    portfolio_id: str,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis=Depends(get_redis),
+):
+    from app.models.portfolio import Portfolio, PortfolioPosition
+    from app.models.asset import Asset
+
+    portfolio = (
+        await db.execute(
+            select(Portfolio).where(
+                Portfolio.id == uuid.UUID(portfolio_id),
+                Portfolio.user_id == current_user.id,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if not portfolio:
+        raise HTTPException(404, "Portafolio no encontrado")
+
+    positions = (
+        await db.execute(
+            select(PortfolioPosition, Asset)
+            .join(
+                Asset,
+                PortfolioPosition.asset_id == Asset.id,
+            )
+            .where(
+                PortfolioPosition.portfolio_id == portfolio.id,
+                PortfolioPosition.is_open == True,
+            )
+        )
+    ).all()
+
+    score = 100
+    warnings = []
+    strengths = []
+
+    if len(positions) < 3:
+        score -= 15
+        warnings.append(
+            "Muy pocas posiciones abiertas"
+        )
+    else:
+        strengths.append(
+            "Diversificación aceptable"
+        )
+
+    return PortfolioHealth(
+        score=score,
+        status="good" if score >= 70 else "moderate",
+        strengths=strengths,
+        warnings=warnings,
     )
 
 # ── Transacciones ─────────────────────────────────────────────────────────────

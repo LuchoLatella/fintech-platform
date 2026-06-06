@@ -54,6 +54,12 @@ class PortfolioResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class PortfolioHealth(BaseModel):
+    score: int
+    status: str
+    strengths: list[str] = []
+    warnings: list[str] = []
+
 
 # ==========================================================
 # POSITIONS
