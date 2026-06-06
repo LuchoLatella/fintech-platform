@@ -5,8 +5,10 @@ from typing import AsyncGenerator
 import redis.asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import text
 
 from app.config import settings
+
 
 # ── SQLAlchemy ────────────────────────────────────────────────────────────────
 engine = create_async_engine(
@@ -55,6 +57,9 @@ async def init_db():
         encoding="utf-8",
         decode_responses=True,
     )
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     # Verificar conexión
     #await redis_client.ping()
 

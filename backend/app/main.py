@@ -12,6 +12,13 @@ from app.config import settings
 from app.database import init_db, close_db
 from app.routers import auth, market, analysis, signals, portfolio, alerts, argentina, websockets, assets, watchlist  #, universe#, ml
 
+from app.models.user import User
+from app.models.portfolio import (
+    Portfolio,
+    PortfolioPosition,
+    PortfolioTransaction,
+    PortfolioSnapshot
+)
 
 log = structlog.get_logger()
 

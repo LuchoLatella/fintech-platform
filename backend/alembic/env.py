@@ -19,6 +19,11 @@ from app.database import Base
 from app.models.user import *
 from app.models.asset import *
 from app.models.signal import *
+from app.models.portfolio import *
+from app.models.alert import *
+#from app.models.market import *
+#from app.models.analysis import *
+#from app.models.universe import *
 
 # Metadata principal
 target_metadata = Base.metadata
