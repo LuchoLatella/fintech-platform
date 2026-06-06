@@ -3,16 +3,17 @@ Router: Portafolio
 CRUD de portafolios, posiciones, transacciones y métricas de riesgo.
 """
 import uuid
-from datetime import date, datetime
-from typing import Optional
+#from datetime import date, datetime
+#from typing import Optional
 
 #
 import pandas as pd
 import structlog 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+#from pydantic import BaseModel
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from decimal import Decimal
 
 from app.database import get_db, get_redis
 from app.routers.auth import get_current_user
@@ -227,8 +228,8 @@ async def get_portfolio_summary(
     return PortfolioSummary(
         portfolio_id=portfolio.id,
         total_positions=len(positions),
-        total_value_usd=0,
-        cash_balance=portfolio.cash_balance,
+        total_value_usd=Decimal("0"),
+        cash_balance=portfolio.cash_balance or Decimal("0"),
         total_return=None,
         risk_score=None,
         recommendation_count=0,
@@ -321,6 +322,8 @@ async def add_transaction(
         else:
             position.quantity = new_qty
 
+    await db.flush()
+    await db.refresh(tx)
     await db.commit()
     return {"message": "Transacción registrada", "transaction_id": str(tx.id)}
 
