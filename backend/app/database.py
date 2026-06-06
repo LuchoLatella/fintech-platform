@@ -4,7 +4,7 @@ Gestión de conexiones a PostgreSQL (SQLAlchemy async) y Redis.
 from typing import AsyncGenerator
 import redis.asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase 
 from sqlalchemy import text
 
 from app.config import settings
