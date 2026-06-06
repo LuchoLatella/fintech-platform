@@ -6,8 +6,9 @@ import uuid
 from datetime import date, datetime
 from typing import Optional
 
-import numpy as np
+#
 import pandas as pd
+import structlog 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select, delete
@@ -16,7 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, get_redis
 from app.routers.auth import get_current_user
 from app.schemas.portfolio import (PortfolioCreate, PortfolioUpdate, PortfolioResponse, TransactionCreate, TransactionResponse, PositionResponse, PortfolioSummary,)
+from app.models.portfolio import Portfolio
 
+log = structlog.get_logger()
 router = APIRouter()
 
 
@@ -24,27 +27,24 @@ router = APIRouter()
 
 
 # ── Portafolios ───────────────────────────────────────────────────────────────
-@router.get("/", summary="Listar portafolios del usuario")
+@router.get(
+    "/",
+    response_model=list[PortfolioResponse],
+    summary="Listar portafolios del usuario",
+)
 async def list_portfolios(
     current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.models.portfolio import Portfolio
     result = await db.execute(
         select(Portfolio)
         .where(Portfolio.user_id == current_user.id)
         .order_by(Portfolio.created_at.desc())
     )
+
     portfolios = result.scalars().all()
-    return [
-        {
-            "id": str(p.id), "name": p.name, "description": p.description,
-            "currency": p.currency, "portfolio_type": p.portfolio_type,
-            "broker": p.broker, "is_default": p.is_default,
-            "created_at": str(p.created_at),
-        }
-        for p in portfolios
-    ]
+
+    return portfolios
 
 
 @router.post(
@@ -53,19 +53,20 @@ async def list_portfolios(
 )
 async def create_portfolio(
     data: PortfolioCreate,
+    current_user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
 
     portfolio = Portfolio(
-        user_id=data.user_id,
-        name=data.name,
-        description=data.description,
-        currency=data.currency,
-        portfolio_type=data.portfolio_type,
-        is_default=data.is_default,
-        broker=data.broker,
-        broker_account=data.broker_account,
-    )
+    user_id=current_user.id,
+    name=data.name,
+    description=data.description,
+    currency=data.currency,
+    portfolio_type=data.portfolio_type,
+    is_default=data.is_default,
+    broker=data.broker,
+    broker_account=data.broker_account,
+)
 
     db.add(portfolio)
 
@@ -187,6 +188,51 @@ async def get_positions(
         "currency": portfolio.currency,
     }
 
+# endpoints adicionales para snapshots, resumen, rebalanceo, etc. se pueden agregar aquí siguiendo la misma estructura.
+
+@router.get(
+    "/{portfolio_id}/summary",
+    response_model=PortfolioSummary,
+    summary="Resumen ejecutivo del portafolio",
+)
+async def get_portfolio_summary(
+    portfolio_id: str,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.portfolio import Portfolio
+    from app.models.portfolio import PortfolioPosition
+
+    portfolio = (
+        await db.execute(
+            select(Portfolio).where(
+                Portfolio.id == uuid.UUID(portfolio_id),
+                Portfolio.user_id == current_user.id,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if not portfolio:
+        raise HTTPException(404, "Portafolio no encontrado")
+
+    positions = (
+        await db.execute(
+            select(PortfolioPosition).where(
+                PortfolioPosition.portfolio_id == portfolio.id,
+                PortfolioPosition.is_open == True,
+            )
+        )
+    ).scalars().all()
+
+    return PortfolioSummary(
+        portfolio_id=portfolio.id,
+        total_positions=len(positions),
+        total_value_usd=0,
+        cash_balance=portfolio.cash_balance,
+        total_return=None,
+        risk_score=None,
+        recommendation_count=0,
+    )
 
 # ── Transacciones ─────────────────────────────────────────────────────────────
 @router.post("/{portfolio_id}/transactions", status_code=201, summary="Registrar compra/venta")
@@ -240,24 +286,34 @@ async def add_transaction(
 
     if data.transaction_type == "buy":
         if position:
-            # Recalcular precio promedio ponderado
+
             old_value = float(position.quantity) * float(position.avg_cost)
-            new_value = data.quantity * data.price
-            new_qty = float(position.quantity) + data.quantity
-            position.avg_cost = (old_value + new_value) / new_qty if new_qty > 0 else data.price
+
+            new_value = float(data.quantity) * float(data.price)
+
+            new_qty = float(position.quantity) + float(data.quantity)
+
+            position.avg_cost = (
+                (old_value + new_value) / new_qty
+                if new_qty > 0
+                else float(data.price)
+            )
+
             position.quantity = new_qty
+
         else:
             position = PortfolioPosition(
                 portfolio_id=uuid.UUID(portfolio_id),
                 asset_id=asset_id,
-                quantity=data.quantity,
-                avg_cost=data.price,
+                quantity=float(data.quantity),
+                avg_cost=float(data.price),
                 currency=data.currency,
             )
+
             db.add(position)
 
     elif data.transaction_type == "sell" and position:
-        new_qty = float(position.quantity) - data.quantity
+        new_qty = float(position.quantity) - float(data.quantity)
         if new_qty <= 0:
             position.quantity = 0
             position.is_open = False
@@ -431,3 +487,4 @@ async def get_risk_metrics(
         await redis.setex(cache_key, 300, json.dumps(result, default=str))
 
     return result
+
