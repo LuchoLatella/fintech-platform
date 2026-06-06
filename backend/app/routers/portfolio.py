@@ -246,8 +246,15 @@ async def get_portfolio_health(
     db: AsyncSession = Depends(get_db),
     redis=Depends(get_redis),
 ):
-    from app.models.portfolio import Portfolio, PortfolioPosition
     from app.models.asset import Asset
+    from app.models.portfolio import PortfolioPosition
+    from app.services.analysis.risk import RiskService
+    from app.services.copilot.portfolio_health import (
+        PortfolioHealthService,
+    )
+    from app.services.market_data.provider import (
+        MarketDataProvider,
+    )
 
     portfolio = (
         await db.execute(
@@ -259,42 +266,120 @@ async def get_portfolio_health(
     ).scalar_one_or_none()
 
     if not portfolio:
-        raise HTTPException(404, "Portafolio no encontrado")
+        raise HTTPException(
+            404,
+            "Portafolio no encontrado",
+        )
 
-    positions = (
+    rows = (
         await db.execute(
-            select(PortfolioPosition, Asset)
+            select(
+                PortfolioPosition,
+                Asset,
+            )
             .join(
                 Asset,
                 PortfolioPosition.asset_id == Asset.id,
             )
             .where(
-                PortfolioPosition.portfolio_id == portfolio.id,
+                PortfolioPosition.portfolio_id
+                == portfolio.id,
                 PortfolioPosition.is_open == True,
             )
         )
     ).all()
 
-    score = 100
-    warnings = []
-    strengths = []
-
-    if len(positions) < 3:
-        score -= 15
-        warnings.append(
-            "Muy pocas posiciones abiertas"
-        )
-    else:
-        strengths.append(
-            "Diversificación aceptable"
+    if not rows:
+        return PortfolioHealth(
+            score=0,
+            status="empty",
+            strengths=[],
+            warnings=["Portafolio sin posiciones"],
         )
 
-    return PortfolioHealth(
-        score=score,
-        status="good" if score >= 70 else "moderate",
-        strengths=strengths,
-        warnings=warnings,
+    provider = MarketDataProvider(
+        redis_client=redis,
     )
+
+    all_returns = {}
+    weights = {}
+    total_value = 0
+
+    for position, asset in rows:
+
+        try:
+
+            ohlcv = await provider.get_ohlcv(
+                asset.symbol,
+                "1d",
+            )
+
+            returns = (
+                ohlcv.data
+                .set_index("time")["close"]
+                .pct_change()
+                .dropna()
+            )
+
+            all_returns[
+                asset.symbol
+            ] = returns
+
+            quote = await provider.get_quote(
+                asset.symbol
+            )
+
+            mv = (
+                float(position.quantity)
+                * quote.price
+            )
+
+            weights[asset.symbol] = mv
+
+            total_value += mv
+
+        except Exception as e:
+
+            log.warning(
+                "health_data_failed",
+                symbol=asset.symbol,
+                error=str(e),
+            )
+
+    await provider.close()
+
+    if not all_returns:
+        raise HTTPException(
+            503,
+            "No se pudieron obtener datos",
+        )
+
+    weights = {
+        k: v / total_value
+        for k, v in weights.items()
+    }
+
+    returns_df = pd.DataFrame(
+        all_returns
+    ).dropna()
+
+    risk_service = RiskService()
+
+    risk_metrics = (
+        risk_service.calculate_portfolio_risk(
+            returns_df,
+            weights,
+        )
+    )
+
+    health_service = PortfolioHealthService()
+
+    health = health_service.calculate(
+        risk_metrics=risk_metrics,
+        total_positions=len(rows),
+    )
+
+    return PortfolioHealth(**health)
 
 # ── Transacciones ─────────────────────────────────────────────────────────────
 @router.post("/{portfolio_id}/transactions", status_code=201, summary="Registrar compra/venta")
