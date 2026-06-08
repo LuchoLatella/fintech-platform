@@ -7,7 +7,7 @@ from typing import Optional
 
 from sqlalchemy import String, Boolean, DateTime, Date, Text, Numeric, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -29,6 +29,24 @@ class Portfolio(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     cash_balance: Mapped[float] = mapped_column(Numeric(20, 4), default=0)
 
+    positions: Mapped[list["PortfolioPosition"]] = relationship(
+        back_populates="portfolio",
+        cascade="all, delete-orphan"
+    )
+
+    transactions: Mapped[list["PortfolioTransaction"]] = relationship(
+        back_populates="portfolio",
+        cascade="all, delete-orphan"
+    )
+
+    snapshots: Mapped[list["PortfolioSnapshot"]] = relationship(
+        back_populates="portfolio",
+        cascade="all, delete-orphan"
+    )
+
+    user: Mapped["User"] = relationship(
+        back_populates="portfolios"
+    )
 
 class PortfolioPosition(Base):
     __tablename__ = "portfolio_positions"
@@ -44,6 +62,9 @@ class PortfolioPosition(Base):
     is_open: Mapped[bool] = mapped_column(Boolean, default=True)
     notes: Mapped[Optional[str]] = mapped_column(Text)
 
+    portfolio: Mapped["Portfolio"] = relationship(
+        back_populates="positions"
+    )
 
 class PortfolioTransaction(Base):
     __tablename__ = "portfolio_transactions"
@@ -61,6 +82,9 @@ class PortfolioTransaction(Base):
     executed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    portfolio: Mapped["Portfolio"] = relationship(
+        back_populates="positions"
+    )
 
 class PortfolioSnapshot(Base):
     __tablename__ = "portfolio_snapshots"
@@ -75,3 +99,7 @@ class PortfolioSnapshot(Base):
     cash_balance: Mapped[Optional[float]] = mapped_column(Numeric(20, 4))
     positions_data: Mapped[Optional[dict]] = mapped_column(JSONB)
     metrics: Mapped[Optional[dict]] = mapped_column(JSONB)
+
+    portfolio: Mapped["Portfolio"] = relationship(
+        back_populates="positions"
+    )
