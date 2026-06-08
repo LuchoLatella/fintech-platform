@@ -83,7 +83,7 @@ class PortfolioTransaction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     portfolio: Mapped["Portfolio"] = relationship(
-        back_populates="positions"
+    back_populates="transactions"
     )
 
 class PortfolioSnapshot(Base):
@@ -101,5 +101,5 @@ class PortfolioSnapshot(Base):
     metrics: Mapped[Optional[dict]] = mapped_column(JSONB)
 
     portfolio: Mapped["Portfolio"] = relationship(
-        back_populates="positions"
+        back_populates="snapshots"
     )
