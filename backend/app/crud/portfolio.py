@@ -59,12 +59,15 @@ async def get_portfolios(
 
 async def get_portfolio(
     db: AsyncSession,
-    portfolio_id: UUID
+    portfolio_id: UUID,
+    user_id: UUID
 ):
-
     result = await db.execute(
         select(Portfolio)
-        .where(Portfolio.id == portfolio_id)
+        .where(
+            Portfolio.id == portfolio_id,
+            Portfolio.user_id == user_id
+        )
     )
 
     return result.scalar_one_or_none()
