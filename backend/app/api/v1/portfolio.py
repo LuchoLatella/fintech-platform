@@ -84,8 +84,9 @@ async def get_portfolio_endpoint(
     db: AsyncSession = Depends(get_db)
 ):
     portfolio = await get_portfolio(
-        db=db,
-        portfolio_id=portfolio_id
+    db=db,
+    portfolio_id=portfolio_id,
+    user_id=TEST_USER_ID
     )
 
     if not portfolio:
@@ -111,9 +112,10 @@ async def update_portfolio_endpoint(
     db: AsyncSession = Depends(get_db)
 ):
     portfolio = await get_portfolio(
-        db=db,
-        portfolio_id=portfolio_id
-    )
+    db=db,
+    portfolio_id=portfolio_id,
+    user_id=TEST_USER_ID
+)
 
     if not portfolio:
         raise HTTPException(
@@ -141,8 +143,9 @@ async def delete_portfolio_endpoint(
     db: AsyncSession = Depends(get_db)
 ):
     portfolio = await get_portfolio(
-        db=db,
-        portfolio_id=portfolio_id
+    db=db,
+    portfolio_id=portfolio_id,
+    user_id=TEST_USER_ID
     )
 
     if not portfolio:
