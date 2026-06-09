@@ -66,6 +66,10 @@ class PortfolioPosition(Base):
         back_populates="positions"
     )
 
+    asset: Mapped["Asset"] = relationship(
+        lazy="joined"
+    )
+
 class PortfolioTransaction(Base):
     __tablename__ = "portfolio_transactions"
 
