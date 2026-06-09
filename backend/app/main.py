@@ -19,8 +19,6 @@ from app.models.portfolio import (
     PortfolioTransaction,
     PortfolioSnapshot
 )
-from app.api.v1.portfolio import router as portfolio_router
-
 
 log = structlog.get_logger()
 
@@ -71,7 +69,7 @@ app.include_router(websockets.router, prefix="/ws/v1",                   tags=["
 #app.include_router(universe.router,    prefix=f"{API_PREFIX}/universe",    tags=["Universo de Activos"])
 app.include_router(assets.router,     prefix=f"{API_PREFIX}/assets",     tags=["Assets"])
 app.include_router(watchlist.router, prefix=f"{API_PREFIX}/watchlist", tags=["Watchlist"])
-app.include_router(portfolio_router, prefix=f"{API_PREFIX}/portfolio", tags=["Portfolio"])
+
 
 @app.get("/health", tags=["Sistema"])
 async def health_check():
