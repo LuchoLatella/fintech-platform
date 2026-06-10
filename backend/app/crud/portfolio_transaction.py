@@ -12,6 +12,10 @@ from app.schemas.portfolio_transaction import (
     PortfolioTransactionUpdate
 )
 
+from app.services.position_service import (
+    update_position_after_transaction
+)
+
 ########################################################################################
 
 async def create_transaction(
@@ -23,9 +27,17 @@ async def create_transaction(
     transaction = PortfolioTransaction(
         portfolio_id=portfolio_id,
         **transaction_in.model_dump()
-    )
+)
 
     db.add(transaction)
+
+    await db.flush()
+
+    await update_position_after_transaction(
+        db=db,
+        portfolio_id=portfolio_id,
+        transaction=transaction
+)
 
     await db.commit()
 
