@@ -23,6 +23,9 @@ from app.models.portfolio import (
 from app.api.v1.portfolio_position import (
     router as portfolio_position_router
 )
+from app.api.v1.portfolio_transaction import (
+    router as portfolio_transaction_router
+)
 
 log = structlog.get_logger()
 
@@ -77,6 +80,11 @@ app.include_router(
     portfolio_position_router,
     prefix=f"{API_PREFIX}",
     tags=["Portfolio Positions"]
+)
+app.include_router(
+    portfolio_transaction_router,
+    prefix=f"{API_PREFIX}",
+    tags=["Portfolio Transactions"]
 )
 
 @app.get("/health", tags=["Sistema"])
