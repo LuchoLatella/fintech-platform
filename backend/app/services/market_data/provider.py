@@ -91,16 +91,50 @@ class MarketDataProvider:
         last_error = None
 
         for source in sources:
+
             try:
-                quote = await self._fetch_quote(symbol, source)
-                # Guardar en caché 60 segundos
+
+                log.info(
+                    "trying_source",
+                    symbol=symbol,
+                    source=source.value
+                )
+
+                quote = await self._fetch_quote(
+                    symbol,
+                    source
+                )
+
+                log.info(
+                    "quote_ok",
+                    symbol=symbol,
+                    source=source.value,
+                    price=quote.price
+                )
+
                 if self.redis:
                     import json
-                    await self.redis.setex(cache_key, 60, json.dumps(quote.__dict__, default=str))
-                log.info("quote_fetched", symbol=symbol, source=source.value)
+
+                    await self.redis.setex(
+                        cache_key,
+                        60,
+                        json.dumps(
+                            quote.__dict__,
+                            default=str
+                        )
+                    )
+
                 return quote
+
             except Exception as e:
-                log.warning("quote_source_failed", symbol=symbol, source=source.value, error=str(e))
+
+                log.warning(
+                    "quote_source_failed",
+                    symbol=symbol,
+                    source=source.value,
+                    error=str(e)
+                )
+
                 last_error = e
                 continue
 
