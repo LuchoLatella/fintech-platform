@@ -637,3 +637,21 @@ async def get_risk_metrics(
 
     return result
 
+@router.get("/test-aapl")
+async def test_aapl():
+
+    from app.services.market_data.provider import (
+        MarketDataProvider
+    )
+
+    provider = MarketDataProvider()
+
+    quote = await provider.get_quote("AAPL")
+
+    await provider.close()
+
+    return {
+        "symbol": quote.symbol,
+        "price": quote.price,
+        "source": quote.source
+    }

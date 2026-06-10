@@ -149,11 +149,40 @@ class MarketDataProvider:
     # ── Yahoo Finance ──────────────────────────────────────────────────────────
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=4))
     async def _quote_yahoo(self, symbol: str) -> Quote:
-        loop = asyncio.get_event_loop()
-        ticker = await loop.run_in_executor(None, lambda: yf.Ticker(symbol))
-        info = await loop.run_in_executor(None, lambda: ticker.info)
 
-        price = info.get("currentPrice") or info.get("regularMarketPrice", 0)
+        loop = asyncio.get_event_loop()
+
+        ticker = await loop.run_in_executor(
+        None,
+        lambda: yf.Ticker(symbol)
+    )
+
+        info = await loop.run_in_executor(
+        None,
+        lambda: ticker.info
+    )
+
+        log.info(
+            "yahoo_info",
+            symbol=symbol,
+            info=info
+    )
+
+        if not info:
+            raise ValueError(
+                f"No data returned by Yahoo for {symbol}"
+            )
+
+        price = (
+            info.get("currentPrice")
+            or info.get("regularMarketPrice")
+        )
+
+        if not price:
+            raise ValueError(
+                f"No price found for {symbol}"
+        )
+
         return Quote(
             symbol=symbol,
             price=price,
@@ -195,6 +224,10 @@ class MarketDataProvider:
         r.raise_for_status()
         data = r.json().get("Global Quote", {})
         price = float(data.get("05. price", 0))
+        if price <= 0:
+            raise ValueError(
+                f"AlphaVantage devolvió precio inválido para {symbol}"
+        )
         return Quote(
             symbol=symbol,
             price=price,
@@ -238,6 +271,10 @@ class MarketDataProvider:
         r = await self._http.get(url, params=params)
         r.raise_for_status()
         d = r.json()
+        if d["c"] <= 0:
+            raise ValueError(
+                f"Finnhub devolvió precio inválido para {symbol}"
+            )
         return Quote(
             symbol=symbol,
             price=d["c"],
