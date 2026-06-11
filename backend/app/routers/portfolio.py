@@ -563,11 +563,17 @@ async def get_risk_metrics(
     from app.services.analysis.risk import RiskService
 
     cache_key = f"risk:{portfolio_id}"
-    if redis:
-        cached = await redis.get(cache_key)
-        if cached:
-            import json
-            return json.loads(cached)
+    
+    try:
+        if redis:
+            cached = await redis.get(cache_key)
+
+            if cached:
+                import json
+                return json.loads(cached)
+            
+    except Exception as e:
+        log.warning("redis_cache_failed", error=str(e))
 
     port_result = await db.execute(
         select(Portfolio).where(
@@ -658,10 +664,14 @@ async def get_risk_metrics(
         "calculated_at": str(datetime.utcnow()),
     }
 
-    if redis:
-        import json
-        await redis.setex(cache_key, 300, json.dumps(result, default=str))
+    try:
+        if redis:
+            import json
+            await redis.setex(cache_key, 300, json.dumps(result, default=str))
 
+    except Exception as e:        
+        log.warning("redis_cache_failed", error=str(e))
+        
     return result
 
 @router.get("/test-aapl")
