@@ -62,32 +62,37 @@ class MarketDataProvider:
     # Orden de prioridad por tipo de activo
     PRIORITY: dict[str, list[DataSource]] = {
         "stock":  [DataSource.ALPHA_VANTAGE, DataSource.FINNHUB, DataSource.YAHOO_FINANCE],
-        "etf":    [DataSource.YAHOO_FINANCE, DataSource.ALPHA_VANTAGE, DataSource.POLYGON],
+        "etf":    [DataSource.ALPHA_VANTAGE, DataSource.POLYGON, DataSource.YAHOO_FINANCE],
         "crypto": [DataSource.BINANCE, DataSource.YAHOO_FINANCE],
         "cedear": [DataSource.BYMA, DataSource.YAHOO_FINANCE],
-        "default":[DataSource.YAHOO_FINANCE, DataSource.ALPHA_VANTAGE, DataSource.FINNHUB],
+        "default":[DataSource.ALPHA_VANTAGE, DataSource.FINNHUB, DataSource.YAHOO_FINANCE],
     }
 
     def __init__(self, redis_client=None):
         self.redis = redis_client
         self._http = httpx.AsyncClient(timeout=settings.API_TIMEOUT_SECONDS)
 
-    async def get_quote(self, symbol: str, asset_class: str = "default") -> Quote:
-        """
-        Obtiene la cotización actual con fallback automático entre fuentes.
-        Cachea el resultado por 60 segundos en Redis.
-        """
+    async def get_quote(
+        self,
+        symbol: str,
+        asset_class: str = "default"
+    ) -> Quote:
+
         cache_key = f"quote:{symbol}"
 
-        # Intentar desde caché
         if self.redis:
             cached = await self.redis.get(cache_key)
+
             if cached:
                 import json
                 data = json.loads(cached)
                 return Quote(**data)
 
-        sources = self.PRIORITY.get(asset_class, self.PRIORITY["default"])
+        sources = self.PRIORITY.get(
+            asset_class,
+            self.PRIORITY["default"]
+        )
+
         last_error = None
 
         for source in sources:
@@ -106,11 +111,16 @@ class MarketDataProvider:
                 )
 
                 log.info(
-                    "quote_ok",
+                    "quote_received",
                     symbol=symbol,
                     source=source.value,
                     price=quote.price
                 )
+
+                if quote.price is None or quote.price <= 0:
+                    raise ValueError(
+                        f"Precio inválido recibido: {quote.price}"
+                    )
 
                 if self.redis:
                     import json
@@ -123,6 +133,13 @@ class MarketDataProvider:
                             default=str
                         )
                     )
+                
+                log.info(
+                    "quote_ok",
+                    symbol=symbol,
+                    source=source.value,
+                    price=quote.price
+                )
 
                 return quote
 
@@ -138,7 +155,9 @@ class MarketDataProvider:
                 last_error = e
                 continue
 
-        raise RuntimeError(f"Todas las fuentes fallaron para {symbol}: {last_error}")
+        raise RuntimeError(
+            f"Todas las fuentes fallaron para {symbol}: {last_error}"
+        )
 
     async def get_ohlcv(self, symbol: str, timeframe: str = "1d",
                          start: Optional[datetime] = None, end: Optional[datetime] = None,
@@ -255,6 +274,8 @@ class MarketDataProvider:
         url = "https://www.alphavantage.co/query"
         params = {"function": "GLOBAL_QUOTE", "symbol": symbol, "apikey": settings.ALPHA_VANTAGE_KEY}
         r = await self._http.get(url, params=params)
+        print("ALPHA STATUS:", r.status_code)
+        print("ALPHA RESPONSE:", r.text)
         r.raise_for_status()
         data = r.json().get("Global Quote", {})
         price = float(data.get("05. price", 0))
@@ -303,6 +324,8 @@ class MarketDataProvider:
         url = f"https://finnhub.io/api/v1/quote"
         params = {"symbol": symbol, "token": settings.FINNHUB_KEY}
         r = await self._http.get(url, params=params)
+        print("FINNHUB STATUS:", r.status_code)
+        print("FINNHUB RESPONSE:", r.text)
         r.raise_for_status()
         d = r.json()
         if d["c"] <= 0:

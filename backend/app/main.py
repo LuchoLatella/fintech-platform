@@ -103,3 +103,4 @@ async def root():
             "Toda inversión conlleva riesgo de pérdida de capital."
         )
     }
+

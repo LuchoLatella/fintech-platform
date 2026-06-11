@@ -149,16 +149,43 @@ async def get_positions(
         market_value = None
         pnl = None
         pnl_pct = None
-        try:
-            quote = await provider.get_quote(asset.symbol)
-            current_price = quote.price
-            market_value = float(position.quantity) * current_price
-            pnl = market_value - cost_basis
-            pnl_pct = (pnl / cost_basis * 100) if cost_basis > 0 else 0
-            total_value += market_value
-        except Exception:
-            pass
 
+        try:
+
+            quote = await provider.get_quote(
+                asset.symbol
+            )
+
+            current_price = quote.price
+
+            market_value = (
+                float(position.quantity)
+                * current_price
+            )
+
+            pnl = market_value - cost_basis
+
+            pnl_pct = (
+                pnl / cost_basis * 100
+                if cost_basis > 0
+                else 0
+            )
+
+            total_value += market_value
+
+        except Exception as e:
+
+            log.error(
+                "position_quote_failed",
+                symbol=asset.symbol,
+                error=str(e)
+            )
+
+            current_price = None
+            market_value = None
+            pnl = None
+            pnl_pct = None
+        
         positions_out.append({
             "asset_id": str(asset.id),
             "symbol": asset.symbol,
@@ -655,3 +682,16 @@ async def test_aapl():
         "price": quote.price,
         "source": quote.source
     }
+
+@router.get("/test-settings")
+async def test_settings():
+    from app.config import settings
+
+    return {
+        "DATABASE_URL": settings.DATABASE_URL,
+        "REDIS_URL": settings.REDIS_URL,
+        "ALPHA_VANTAGE_KEY": bool(settings.ALPHA_VANTAGE_KEY),
+        "FINNHUB_KEY": bool(settings.FINNHUB_KEY),
+    }
+
+
