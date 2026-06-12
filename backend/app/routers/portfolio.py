@@ -3,7 +3,7 @@ Router: Portafolio
 CRUD de portafolios, posiciones, transacciones y métricas de riesgo.
 """
 import uuid
-#from datetime import date, datetime
+from datetime import date, datetime
 #from typing import Optional
 
 #
@@ -671,7 +671,7 @@ async def get_risk_metrics(
 
     except Exception as e:        
         log.warning("redis_cache_failed", error=str(e))
-        
+
     return result
 
 @router.get("/test-aapl")

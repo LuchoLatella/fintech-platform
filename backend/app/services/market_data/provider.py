@@ -300,11 +300,30 @@ class MarketDataProvider:
         func_map = {"1d": "TIME_SERIES_DAILY", "1w": "TIME_SERIES_WEEKLY"}
         function = func_map.get(timeframe, "TIME_SERIES_DAILY")
         url = "https://www.alphavantage.co/query"
-        params = {"function": function, "symbol": symbol, "outputsize": "full", "apikey": settings.ALPHA_VANTAGE_KEY}
+        params = {"function": function, "symbol": symbol, "outputsize": "compact", "apikey": settings.ALPHA_VANTAGE_KEY}
         r = await self._http.get(url, params=params)
+        print("OHLCV STATUS:", r.status_code)
+        print("OHLCV RESPONSE:", r.text[:1000])
         r.raise_for_status()
-        ts_key = [k for k in r.json() if "Time Series" in k][0]
-        raw = r.json()[ts_key]
+        data = r.json()
+        if "Note" in data:
+            raise ValueError(
+                f"AlphaVantage limit reached: {data['Note']}"
+            )
+
+        if "Error Message" in data:
+            raise ValueError(
+                f"AlphaVantage error: {data['Error Message']}"
+            )
+        ts_keys = [k for k in data.keys() if "Time Series" in k]
+        if not ts_keys:
+            raise ValueError(
+                f"No Time Series encontrada. Respuesta: {data}"
+            )
+        ts_key = ts_keys[0]
+
+        raw = data[ts_key]
+
         rows = []
         for date_str, vals in raw.items():
             rows.append({
