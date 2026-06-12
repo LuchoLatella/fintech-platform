@@ -56,10 +56,22 @@ class RiskService:
         weights: dict[str, float],      # {símbolo: peso en portafolio 0-1}
         benchmark_returns: Optional[pd.Series] = None,  # retornos del benchmark (S&P500 o Merval)
         positions_by_sector: Optional[dict] = None,
+    
     ) -> RiskMetrics:
         """
         Calcula todas las métricas de riesgo del portafolio.
         """
+        print("=" * 80)
+        print("RETURNS_DF")
+        print(returns_df.head())
+        print("ROWS:", len(returns_df))
+        print("COLS:", returns_df.columns.tolist())
+
+        print("=" * 80)
+        print("WEIGHTS")
+        print(weights)
+        print("=" * 80)
+
         metrics = RiskMetrics()
 
         if returns_df.empty or not weights:
@@ -67,6 +79,7 @@ class RiskService:
 
         # Alinear columnas con weights
         symbols = [s for s in weights if s in returns_df.columns]
+        print("SYMBOLS ENCONTRADOS:", symbols)
         if not symbols:
             return metrics
 
@@ -76,6 +89,10 @@ class RiskService:
 
         # Retornos del portafolio
         portfolio_returns = df.values @ w
+
+        print("PORTFOLIO RETURNS")
+        print(portfolio_returns[:10])
+        print("CANTIDAD RETURNS:", len(portfolio_returns))
 
         # ── VaR ────────────────────────────────────────────────────────────────
         metrics.var_95_1d = self._var(portfolio_returns, 0.95)
@@ -113,16 +130,32 @@ class RiskService:
 
         # ── Beta y Alpha vs benchmark ─────────────────────────────────────────
         if benchmark_returns is not None:
+            print("=" * 80)
+            print("BENCHMARK RECIBIDO")
+            print("ROWS:", len(benchmark_returns))
+            print("=" * 80)           
+            print("AAPL INDEX")
+            print(df.index[:5])
+
+            print("SPY INDEX")
+            print(benchmark_returns.index[:5])
+
             bench = benchmark_returns.reindex(df.index).dropna()
             port_aligned = pd.Series(portfolio_returns, index=df.index).reindex(bench.index).dropna()
+            print("PORT ALIGNED:", len(port_aligned))
+            print("BENCH:", len(bench))
             if len(port_aligned) > 30:
-                cov_matrix = np.cov(port_aligned, bench)
-                benchmark_var = float(np.var(bench))
-                if benchmark_var > 0:
+                    cov_matrix = np.cov(port_aligned, bench)
+                    benchmark_var = float(np.var(bench))
+            
+            if benchmark_var > 0:
                     metrics.beta = round(float(cov_matrix[0, 1] / benchmark_var), 4)
                     port_annual = float(np.mean(port_aligned)) * self.TRADING_DAYS
                     bench_annual = float(np.mean(bench)) * self.TRADING_DAYS
                     metrics.alpha = round(port_annual - (self.RISK_FREE_RATE + (metrics.beta or 1) * (bench_annual - self.RISK_FREE_RATE)), 4)
+            print("BENCHMARK VAR:", benchmark_var)
+            print("BETA:", metrics.beta)
+            print("ALPHA:", metrics.alpha)
 
         # ── Concentración ─────────────────────────────────────────────────────
         sorted_w = sorted(w, reverse=True)

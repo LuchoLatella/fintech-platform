@@ -61,7 +61,7 @@ class MarketDataProvider:
 
     # Orden de prioridad por tipo de activo
     PRIORITY: dict[str, list[DataSource]] = {
-        "stock":  [DataSource.ALPHA_VANTAGE, DataSource.FINNHUB, DataSource.YAHOO_FINANCE],
+        "stock":  [DataSource.YAHOO_FINANCE, DataSource.ALPHA_VANTAGE, DataSource.FINNHUB, DataSource.BYMA],
         "etf":    [DataSource.ALPHA_VANTAGE, DataSource.POLYGON, DataSource.YAHOO_FINANCE],
         "crypto": [DataSource.BINANCE, DataSource.YAHOO_FINANCE],
         "cedear": [DataSource.BYMA, DataSource.YAHOO_FINANCE],
@@ -80,13 +80,21 @@ class MarketDataProvider:
 
         cache_key = f"quote:{symbol}"
 
-        if self.redis:
-            cached = await self.redis.get(cache_key)
+        try:
+            if self.redis:
+                cached = await self.redis.get(cache_key)
 
-            if cached:
-                import json
-                data = json.loads(cached)
-                return Quote(**data)
+                if cached:
+                    import json
+                    data = json.loads(cached)
+                    return Quote(**data)
+                
+        except Exception as e:
+            log.warning(
+                "redis_cache_failed",
+                symbol=symbol,
+                error=str(e)
+            )
 
         sources = self.PRIORITY.get(
             asset_class,
@@ -122,16 +130,26 @@ class MarketDataProvider:
                         f"Precio inválido recibido: {quote.price}"
                     )
 
-                if self.redis:
-                    import json
+                try:
+                    if self.redis:
+                        import json
 
-                    await self.redis.setex(
-                        cache_key,
-                        60,
-                        json.dumps(
-                            quote.__dict__,
-                            default=str
+                        await self.redis.setex(
+                            cache_key,
+                            60,
+                            json.dumps(
+                                quote.__dict__,
+                                default=str
+                            )
                         )
+
+                except Exception as e:
+
+                    log.warning(
+                        "redis_cache_failed",
+                        symbol=symbol,
+                        source=source.value,
+                        error=str(e)
                     )
                 
                 log.info(

@@ -601,21 +601,76 @@ async def get_risk_metrics(
     weights = {}
     total_value = 0.0
 
+    # for position, asset in rows:
+    #     try:
+    #         ohlcv = await provider.get_ohlcv(asset.symbol, "1d")
+    #         closes = ohlcv.data.set_index("time")["close"]
+    #         returns = closes.pct_change().dropna()
+    #         all_returns[asset.symbol] = returns
+
+    #         quote = await provider.get_quote(asset.symbol)
+    #         mv = float(position.quantity) * quote.price
+    #         weights[asset.symbol] = mv
+    #         total_value += mv
+    #     except Exception as e:
+    #         log.warning("risk_data_failed", symbol=asset.symbol, error=str(e))
+
+    # await provider.close()
     for position, asset in rows:
         try:
-            ohlcv = await provider.get_ohlcv(asset.symbol, "1d")
+
+            log.info(
+                "risk_fetch_ohlcv_start",
+                symbol=asset.symbol
+            )
+
+            ohlcv = await provider.get_ohlcv(
+                asset.symbol,
+                "1d"
+            )
+
+            log.info(
+                "risk_fetch_ohlcv_ok",
+                symbol=asset.symbol,
+                rows=len(ohlcv.data)
+            )
+
             closes = ohlcv.data.set_index("time")["close"]
+
             returns = closes.pct_change().dropna()
+
             all_returns[asset.symbol] = returns
 
-            quote = await provider.get_quote(asset.symbol)
-            mv = float(position.quantity) * quote.price
-            weights[asset.symbol] = mv
-            total_value += mv
-        except Exception as e:
-            log.warning("risk_data_failed", symbol=asset.symbol, error=str(e))
+            log.info(
+                "risk_fetch_quote_start",
+                symbol=asset.symbol
+            )
 
-    await provider.close()
+            quote = await provider.get_quote(
+                asset.symbol
+            )
+
+            log.info(
+                "risk_fetch_quote_ok",
+                symbol=asset.symbol,
+                price=quote.price
+            )
+
+            mv = float(position.quantity) * quote.price
+
+            weights[asset.symbol] = mv
+
+            total_value += mv
+
+        except Exception as e:
+
+            log.exception(
+                "risk_data_failed",
+                symbol=asset.symbol
+            )
+    
+        finally:
+            await provider.close()
 
     if not all_returns:
         raise HTTPException(503, "No se pudieron obtener datos históricos")
@@ -625,8 +680,90 @@ async def get_risk_metrics(
         weights = {k: v / total_value for k, v in weights.items()}
 
     returns_df = pd.DataFrame(all_returns).dropna()
+    log.info(
+        "risk_input",
+        rows=len(returns_df),
+        cols=len(returns_df.columns),
+        weights=weights,
+    )
+    # ==========================
+    # BENCHMARK SPY
+    # ==========================
+
+    benchmark_returns = None
+
+    try:
+        log.info("risk_fetch_benchmark_start")
+
+        spy_ohlcv = await provider.get_ohlcv(
+            "SPY",
+        "   1d"
+        )
+
+        print("=" * 80)
+        print("SPY OHLCV")
+        print(spy_ohlcv.data.head())
+        print("ROWS:", len(spy_ohlcv.data))
+        print("=" * 80)
+
+        benchmark_returns = (
+            spy_ohlcv.data
+            .set_index("time")["close"]
+            .pct_change()
+            .dropna()
+        )
+        print("BENCHMARK RETURNS")
+        print(benchmark_returns.head())
+        print("ROWS:", len(benchmark_returns))
+
+        log.info(
+            "risk_fetch_benchmark_ok",
+            rows=len(benchmark_returns)
+        )
+
+    except Exception as e:
+
+        log.warning(
+            "benchmark_failed",
+            error=str(e)
+        )
+
+    # ==========================
+    # RISK
+    # ==========================  
+
+    metrics = risk_svc.calculate_portfolio_risk(
+        returns_df,
+        weights,
+        benchmark_returns=benchmark_returns
+    )
+
+    print("=" * 80)
+    print("RETURNS_DF")
+    print(returns_df.head())
+    print("ROWS:", len(returns_df))
+    print("COLS:", returns_df.columns.tolist())
+
+    print("=" * 80)
+    print("WEIGHTS")
+    print(weights)
+    print("=" * 80)
+
     metrics = risk_svc.calculate_portfolio_risk(returns_df, weights)
+    log.info(
+        "risk_metrics_generated",
+        var95=metrics.var_95_1d,
+        vol=metrics.volatility_daily,
+        sharpe=metrics.sharpe_ratio,
+        dd=metrics.max_drawdown,
+    )
     suggestions = risk_svc.suggest_rebalancing(weights, metrics)
+
+    log.info(
+        "returns_dataframe",
+        rows=len(returns_df),
+        cols=len(returns_df.columns)
+    )
 
     result = {
         "portfolio_id": portfolio_id,
@@ -672,6 +809,11 @@ async def get_risk_metrics(
     except Exception as e:        
         log.warning("redis_cache_failed", error=str(e))
 
+    log.info(
+        "risk_result",
+        result=result
+    )
+
     return result
 
 @router.get("/test-aapl")
@@ -704,4 +846,20 @@ async def test_settings():
         "FINNHUB_KEY": bool(settings.FINNHUB_KEY),
     }
 
+@router.get("/test-spy")
+async def test_spy():
+
+    provider = MarketDataProvider()
+
+    data = await provider.get_ohlcv(
+        "SPY",
+        "1d"
+    )
+
+    await provider.close()
+
+    return {
+        "rows": len(data.data),
+        "columns": data.data.columns.tolist()
+    }
 
