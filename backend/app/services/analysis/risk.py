@@ -129,7 +129,15 @@ class RiskService:
             metrics.calmar_ratio = round(annual_return / abs(metrics.max_drawdown), 4)
 
         # ── Beta y Alpha vs benchmark ─────────────────────────────────────────
+        benchmark_var = None
+        cov_matrix = None
+        
         if benchmark_returns is not None:
+            metrics.beta = None
+            metrics.alpha = None
+
+            benchmark_var = None
+            cov_matrix = None
             print("=" * 80)
             print("BENCHMARK RECIBIDO")
             print("ROWS:", len(benchmark_returns))
@@ -147,8 +155,11 @@ class RiskService:
             if len(port_aligned) > 30:
                     cov_matrix = np.cov(port_aligned, bench)
                     benchmark_var = float(np.var(bench))
+
+            if benchmark_returns is not None and not benchmark_returns.empty:
+                benchmark_var = float(np.var(bench))
             
-            if benchmark_var > 0:
+            if benchmark_var is not None and benchmark_var > 0: 
                     metrics.beta = round(float(cov_matrix[0, 1] / benchmark_var), 4)
                     port_annual = float(np.mean(port_aligned)) * self.TRADING_DAYS
                     bench_annual = float(np.mean(bench)) * self.TRADING_DAYS

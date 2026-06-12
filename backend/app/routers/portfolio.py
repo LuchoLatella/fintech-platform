@@ -205,7 +205,7 @@ async def get_positions(
         if total_value > 0 and p["market_value"]:
             p["weight"] = round(p["market_value"] / total_value * 100, 2)
 
-    await provider.close()
+    #await provider.close()
 
     return {
         "positions": positions_out,
@@ -373,7 +373,7 @@ async def get_portfolio_health(
                 error=str(e),
             )
 
-    await provider.close()
+    #await provider.close()
 
     if not all_returns:
         raise HTTPException(
@@ -669,8 +669,7 @@ async def get_risk_metrics(
                 symbol=asset.symbol
             )
     
-        finally:
-            await provider.close()
+    #await provider.close()     
 
     if not all_returns:
         raise HTTPException(503, "No se pudieron obtener datos históricos")
@@ -697,7 +696,7 @@ async def get_risk_metrics(
 
         spy_ohlcv = await provider.get_ohlcv(
             "SPY",
-        "   1d"
+            "1d"
         )
 
         print("=" * 80)
@@ -749,7 +748,6 @@ async def get_risk_metrics(
     print(weights)
     print("=" * 80)
 
-    metrics = risk_svc.calculate_portfolio_risk(returns_df, weights)
     log.info(
         "risk_metrics_generated",
         var95=metrics.var_95_1d,
@@ -816,6 +814,7 @@ async def get_risk_metrics(
 
     return result
 
+
 @router.get("/test-aapl")
 async def test_aapl():
 
@@ -827,13 +826,14 @@ async def test_aapl():
 
     quote = await provider.get_quote("AAPL")
 
-    await provider.close()
+    #await provider.close()
 
     return {
         "symbol": quote.symbol,
         "price": quote.price,
         "source": quote.source
     }
+        
 
 @router.get("/test-settings")
 async def test_settings():
@@ -848,18 +848,21 @@ async def test_settings():
 
 @router.get("/test-spy")
 async def test_spy():
-
+    from app.services.market_data.provider import MarketDataProvider
     provider = MarketDataProvider()
 
     data = await provider.get_ohlcv(
         "SPY",
         "1d"
+    
     )
-
-    await provider.close()
+    print(data.data.head())
+    print(len(data.data))
+    #await provider.close()
 
     return {
         "rows": len(data.data),
         "columns": data.data.columns.tolist()
     }
 
+    
