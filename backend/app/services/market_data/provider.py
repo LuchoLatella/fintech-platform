@@ -2,7 +2,7 @@
 MarketDataProvider — capa de abstracción sobre múltiples APIs financieras.
 Implementa fallback automático y validación cruzada de datos.
 """
-from __future__ import annotations
+from __future__ imlrt annotations
 import asyncio
 from datetime import datetime
 from typing import Optional
