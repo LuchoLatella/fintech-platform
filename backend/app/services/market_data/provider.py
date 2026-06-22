@@ -62,10 +62,10 @@ class MarketDataProvider:
     # Orden de prioridad por tipo de activo
     PRIORITY: dict[str, list[DataSource]] = {
         "stock":  [DataSource.YAHOO_FINANCE, DataSource.ALPHA_VANTAGE, DataSource.FINNHUB, DataSource.BYMA],
-        "etf":    [DataSource.ALPHA_VANTAGE, DataSource.POLYGON, DataSource.YAHOO_FINANCE],
+        "etf":    [DataSource.YAHOO_FINANCE,DataSource.ALPHA_VANTAGE, DataSource.POLYGON],
         "crypto": [DataSource.BINANCE, DataSource.YAHOO_FINANCE],
         "cedear": [DataSource.BYMA, DataSource.YAHOO_FINANCE],
-        "default":[DataSource.ALPHA_VANTAGE, DataSource.FINNHUB, DataSource.YAHOO_FINANCE],
+        "default":[DataSource.YAHOO_FINANCE, DataSource.ALPHA_VANTAGE, DataSource.FINNHUB],
     }
 
     def __init__(self, redis_client=None):

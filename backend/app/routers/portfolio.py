@@ -731,10 +731,12 @@ async def get_risk_metrics(
     # RISK
     # ==========================  
 
+    benchmark_returns = await risk_svc.get_benchmark_returns("SPY")
+
     metrics = risk_svc.calculate_portfolio_risk(
-        returns_df,
+        returns_df, 
         weights,
-        benchmark_returns=benchmark_returns
+        benchmark_returns=benchmark_returns if not benchmark_returns.empty else None
     )
 
     print("=" * 80)
