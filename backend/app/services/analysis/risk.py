@@ -250,6 +250,24 @@ class RiskService:
         var = self._var(returns, confidence)
         tail = returns[returns <= var]
         return round(float(np.mean(tail)), 6) if len(tail) > 0 else var
+    
+    async def get_benchmark_returns(self, symbol: str = "SPY") -> "pd.Series":
+    #"""Obtiene retornos históricos del benchmark directamente desde Yahoo."""
+        import asyncio
+        import yfinance as yf
+    
+        try:
+            loop = asyncio.get_event_loop()
+            ticker = yf.Ticker(symbol)
+            df = await loop.run_in_executor(None, lambda: ticker.history(period="1y"))
+            if df.empty:
+                return pd.Series(dtype=float)
+            df.index = pd.to_datetime(df.index).tz_localize(None)
+            df.index.name = "time"
+            returns = df["Close"].pct_change().dropna()
+            return returns
+        except Exception as e:
+            return pd.Series(dtype=float)
 
     def _risk_label(self, m: RiskMetrics) -> str:
         score = 0
