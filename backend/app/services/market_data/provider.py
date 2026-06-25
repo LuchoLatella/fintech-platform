@@ -282,3 +282,173 @@ symbol: str,
         return None
     return float(price)
 
+# OHLCV --------------------------------------------------------------------------------------------------
+
+async def get_ohlcv(
+    self,
+    symbol: str,
+    period: str = "1y",
+    ) -> pd.DataFrame:
+    
+    symbol = symbol.upper() 
+    cache_key = f"ohlcv:{symbol}:{period}" 
+    cached = await self._get_cache(cache_key)
+
+    if isinstance(cached, pd.DataFrame):
+        return cached
+
+    for source in self.ohlcv_sources:
+        try:
+            log.info( 
+                "ohlcv_try", 
+                symbol=symbol, 
+                source=source.value,
+            )
+
+            if source == DataSource.ALPHAVANTAGE:
+                df = await self._get_ohlcv_alphavantage(symbol)
+        
+            elif source == DataSource.FINNHUB:
+                df = await self._get_ohlcv_finnhub(symbol)
+
+            else:
+                df = await self._get_ohlcv_yahoo(symbol)
+
+            if not df.empty:
+
+                await self._set_cache( cache_key, df, ttl=3600, )
+
+                log.info( "ohlcv_ok", symbol=symbol, source=source.value, rows=len(df), )
+
+                return df
+    
+        except Exception as exc:
+        
+            log.warning(
+                "ohlcv_source_failed",
+                symbol=symbol,
+                source=source.value,
+                error=str(exc),
+            )
+
+    return pd.DataFrame()
+
+# ALPHAVANTAGE OHLCV --------------------------------------------------------------------------------------------------
+
+async def _get_ohlcv_alphavantage(
+self,
+symbol: str,
+) -> pd.DataFrame:
+    
+    url = ( "https://www.alphavantage.co/query" "?function=TIME_SERIES_DAILY_ADJUSTED" f"&symbol={symbol}" "&outputsize=full" f"&apikey={self.alpha_key}" )
+
+    response = await self.http.get(url)
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    ts = data.get( "Time Series (Daily)" )
+
+    if not ts:
+
+        raise ValueError(f"No Time Series encontrada. Respuesta: {data}")
+    
+    rows = []
+
+    for date_str, values in ts.items():
+
+        rows.append(
+                {
+                    "time": pd.to_datetime(date_str), 
+                    "open": float(values["1. open"]), 
+                    "high": float(values["2. high"]), 
+                    "low": float(values["3. low"]), 
+                    "close": float(values["4. close"]), 
+                    "volume": float(values["6. volume"]), 
+                }
+        )  
+    
+    df = pd.DataFrame(rows)
+
+    df.sort_values( "time", inplace=True, )
+    df.set_index( "time", inplace=True, )
+
+    return df
+
+# FINNHUB OHLCV --------------------------------------------------------------------------------------------------
+
+async def _get_ohlcv_finnhub(self,
+symbol: str,
+) -> pd.DataFrame:
+    
+    end = int(datetime.utcnow().timestamp())
+
+    start = int( ( datetime.utcnow() - timedelta(days=365) ).timestamp() )
+
+    url = ( "https://finnhub.io/api/v1/stock/candle" f"?symbol={symbol}" "&resolution=D" f"&from={start}" f"&to={end}" f"&token={self.finnhub_key}" )
+
+    response = await self.http.get(url) 
+    response.raise_for_status() 
+    data = response.json()
+
+    if data.get("s") != "ok":   
+        raise ValueError(f"No se pudo obtener OHLCV de Finnhub. Respuesta: {data}")
+    
+    df = pd.DataFrame(
+        {
+            "time": pd.to_datetime(data["t"], unit="s"), 
+            "open": data["o"], 
+            "high": data["h"], 
+            "low": data["l"], 
+            "close": data["c"], 
+            "volume": data["v"], 
+        }
+    )
+
+    df.set_index("time", inplace=True)
+
+    return df
+
+# YAHOO OHLCV --------------------------------------------------------------------------------------------------
+
+async def _get_ohlcv_yahoo(self,
+symbol: str,
+period: str = "1y",
+) -> pd.DataFrame:
+    ticker = yf.Ticker(symbol)
+
+    df = ticker.history( period=period, auto_adjust=True, )
+
+    if df.empty:
+        raise ValueError(f"No se pudo obtener OHLCV de Yahoo Finance para {symbol}")
+    
+    df = df.rename( columns={ "Open": "open", "High": "high", "Low": "low", "Close": "close", "Volume": "volume", } )
+
+    df.index.name = "time"
+
+    return df[ [ "open", "high", "low", "close", "volume", ] ]
+
+
+
+# BENCHMARK --------------------------------------------------------------------------------------------------
+
+async def get_benchmark_returns(
+    self,
+    benchmark: str = "SPY",
+) -> pd.Series:
+    try:
+        df = await self.get_ohlcv(benchmark, "1y")
+
+        if df.empty:
+            return pd.Series(dtype=float)
+
+        returns = df["close"].pct_change().dropna()
+
+        log.info("benchmark_ok", benchmark=benchmark, rows=len(returns))
+
+        return returns
+    except Exception as exc:
+        log.warning("benchmark_failed", benchmark=benchmark, error=str(exc))
+        return pd.Series(dtype=float)
+
