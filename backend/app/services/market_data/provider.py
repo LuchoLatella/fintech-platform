@@ -451,4 +451,126 @@ async def get_benchmark_returns(
     except Exception as exc:
         log.warning("benchmark_failed", benchmark=benchmark, error=str(exc))
         return pd.Series(dtype=float)
+    
+
+    # CURRENT PRICE--------------------------------------------------------------------------------------------------
+
+async def get_current_price(
+self,
+symbol: str,
+) -> Optional[float]:
+
+    quote = await self.get_quote(symbol)
+
+    if not quote:
+        return None
+    return quote.price
+
+# NORMALIZACION --------------------------------------------------------------------------------------------------
+
+def normalize_symbol(
+self,
+symbol: str,
+) -> str:
+    
+    symbol = symbol.upper().strip()
+
+    replacements = { ".BA": "", " US": "", "NYSE:": "", "NASDAQ:": "", }
+
+    for old, new in replacements.items():
+        symbol = symbol.replace(old, new)
+
+    return symbol
+
+# VALIDACION --------------------------------------------------------------------------------------------------
+
+def is_valid_price(
+self,
+value: Any,
+) -> bool:
+    
+    try: return ( value is not None and float(value) > 0 )
+
+    except Exception: return False
+
+
+# REDIS --------------------------------------------------------------------------------------------------
+
+async def ping_redis(self) -> bool:
+
+    if not self.redis: return False
+
+    try: 
+        
+        await self.redis.ping() 
+    
+        return True
+    
+    except Exception: 
+        return False
+    
+# MARKET PROVIDER STATUS --------------------------------------------------------------------------------------------------
+
+async def health_check(self) -> Dict[str, Any]:
+
+    redis_ok = await self.ping_redis()
+
+    status = { "redis": redis_ok, 
+              "alphavantage": bool(self.alpha_key), 
+              "finnhub": bool(self.finnhub_key), 
+              "yahoo": True, }
+    
+    status["overall"] = any([status["alphavantage"], status["finnhub"], status["yahoo"]])
+
+    return status
+
+# CLOSE RESOURCES --------------------------------------------------------------------------------------------------
+
+
+async def close(self):
+
+    try: 
+        if self.http: await self.http.aclose()
+
+    except Exception as esc:
+
+        log.warning( "http_close_failed", error=str(exc), )
+
+    try: 
+        if self.redis: 
+            await self.redis.close()
+    
+    except Exception as exc:
+        log.warning( "redis_close_failed", error=str(exc), )
+
+
+# ASYNC CONTEXT SUPPORT --------------------------------------------------------------------------------------------------
+
+async def aenter(self):
+
+    return self
+
+async def aexit(
+    self,
+    exc_type,
+    exc,
+    tb,
+        ):
+
+    await self.close()
+
+# SINGLETON --------------------------------------------------------------------------------------------------
+
+_provider_instance = None
+
+def get_market_provider():
+
+    global _provider_instance
+
+    if _provider_instance is None:
+
+        _provider_instance = MarketDataProvider()
+
+    return _provider_instance
+
 
