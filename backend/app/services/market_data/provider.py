@@ -1,427 +1,90 @@
-"""
-MarketDataProvider — capa de abstracción sobre múltiples APIs financieras.
-Implementa fallback automático y validación cruzada de datos.
-"""
-from __future__ import annotations
-import asyncio
-from datetime import datetime
-from typing import Optional
-from dataclasses import dataclass
-from enum import Enum
+from future import annotations
 
+from enum import Enum
+from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
+
+import asyncio
+import pandas as pd
+import numpy as np
 import httpx
 import yfinance as yf
-import pandas as pd
+
+from cachetools import TTLCache
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from app.config import settings
-
 import structlog
+
+from app.core.config import settings
+
+try:
+    import redis.asyncio as redis
+except Exception:
+    redis = None
+
 log = structlog.get_logger()
 
 
+#DATA SOURCES--------------------------------------------------------------------------------------------------
+
+
 class DataSource(str, Enum):
-    ALPHA_VANTAGE = "alphavantage"
-    YAHOO_FINANCE = "yahoo"
-    FINNHUB       = "finnhub"
-    POLYGON       = "polygon"
-    BYMA          = "byma"
-    BINANCE       = "binance"
+    ALPHAVANTAGE = "alphavantage"
+    FINNHUB = "finnhub"
+    YAHOO = "yahoo"
 
 
-@dataclass
-class Quote:
-    symbol: str
-    price: float
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    timestamp: datetime
-    source: DataSource
-    currency: str = "USD"
-    change_pct: Optional[float] = None
-
-
-@dataclass
-class OHLCV:
-    symbol: str
-    timeframe: str
-    data: pd.DataFrame   # columnas: time, open, high, low, close, volume
-    source: DataSource
+#PROVIDER ----------------------------------------------------------------------------------------------------
 
 
 class MarketDataProvider:
-    """
-    Proveedor unificado de datos de mercado.
-    Intenta las fuentes en orden de prioridad y usa fallback automático.
-    Cachea resultados en Redis para evitar duplicar requests.
-    """
 
-    # Orden de prioridad por tipo de activo
-    PRIORITY: dict[str, list[DataSource]] = {
-        "stock":  [DataSource.YAHOO_FINANCE, DataSource.ALPHA_VANTAGE, DataSource.FINNHUB, DataSource.BYMA],
-        "etf":    [DataSource.YAHOO_FINANCE,DataSource.ALPHA_VANTAGE, DataSource.POLYGON],
-        "crypto": [DataSource.BINANCE, DataSource.YAHOO_FINANCE],
-        "cedear": [DataSource.BYMA, DataSource.YAHOO_FINANCE],
-        "default":[DataSource.YAHOO_FINANCE, DataSource.ALPHA_VANTAGE, DataSource.FINNHUB],
-    }
+    def __init__(self):
 
-    def __init__(self, redis_client=None):
-        self.redis = redis_client
-        self._http = httpx.AsyncClient(timeout=settings.API_TIMEOUT_SECONDS)
+        self.alpha_key = settings.ALPHA_VANTAGE_KEY
+        self.finnhub_key = settings.FINNHUB_KEY
 
-    async def get_quote(
-        self,
-        symbol: str,
-        asset_class: str = "default"
-    ) -> Quote:
-
-        cache_key = f"quote:{symbol}"
-
-        try:
-            if self.redis:
-                cached = await self.redis.get(cache_key)
-
-                if cached:
-                    import json
-                    data = json.loads(cached)
-                    return Quote(**data)
-                
-        except Exception as e:
-            log.warning(
-                "redis_cache_failed",
-                symbol=symbol,
-                error=str(e)
-            )
-
-        sources = self.PRIORITY.get(
-            asset_class,
-            self.PRIORITY["default"]
+        self.http = httpx.AsyncClient(
+            timeout=20.0
         )
 
-        last_error = None
+        self.memory_cache = TTLCache(
+            maxsize=5000,
+            ttl=300,
+        )
 
-        for source in sources:
+        self.redis = None
+
+        if redis:
 
             try:
 
-                log.info(
-                    "trying_source",
-                    symbol=symbol,
-                    source=source.value
+                self.redis = redis.from_url(
+                    settings.REDIS_URL,
+                    decode_responses=True,
                 )
 
-                quote = await self._fetch_quote(
-                    symbol,
-                    source
-                )
-
-                log.info(
-                    "quote_received",
-                    symbol=symbol,
-                    source=source.value,
-                    price=quote.price
-                )
-
-                if quote.price is None or quote.price <= 0:
-                    raise ValueError(
-                        f"Precio inválido recibido: {quote.price}"
-                    )
-
-                try:
-                    if self.redis:
-                        import json
-
-                        await self.redis.setex(
-                            cache_key,
-                            60,
-                            json.dumps(
-                                quote.__dict__,
-                                default=str
-                            )
-                        )
-
-                except Exception as e:
-
-                    log.warning(
-                        "redis_cache_failed",
-                        symbol=symbol,
-                        source=source.value,
-                        error=str(e)
-                    )
-                
-                log.info(
-                    "quote_ok",
-                    symbol=symbol,
-                    source=source.value,
-                    price=quote.price
-                )
-
-                return quote
-
-            except Exception as e:
+            except Exception as exc:
 
                 log.warning(
-                    "quote_source_failed",
-                    symbol=symbol,
-                    source=source.value,
-                    error=str(e)
+                    "redis_init_failed",
+                    error=str(exc),
                 )
 
-                last_error = e
-                continue
+        self.quote_sources = [
+            DataSource.ALPHAVANTAGE,
+            DataSource.FINNHUB,
+            DataSource.YAHOO,
+        ]
 
-        raise RuntimeError(
-            f"Todas las fuentes fallaron para {symbol}: {last_error}"
-        )
-
-    async def get_ohlcv(self, symbol: str, timeframe: str = "1d",
-                         start: Optional[datetime] = None, end: Optional[datetime] = None,
-                         asset_class: str = "default") -> OHLCV:
-        """Obtiene datos OHLCV históricos con fallback."""
-        #cache_key = f"ohlcv:{symbol}:{timeframe}"
-
-        sources = self.PRIORITY.get(asset_class, self.PRIORITY["default"])
-
-        for source in sources:
-            try:
-                return await self._fetch_ohlcv(symbol, timeframe, start, end, source)
-            except Exception as e:
-                log.warning("ohlcv_source_failed", symbol=symbol, source=source.value, error=str(e))
-                continue
-
-        raise RuntimeError(f"No se pudieron obtener datos OHLCV para {symbol}")
-
-    # ── Implementaciones por fuente ────────────────────────────────────────────
-
-    async def _fetch_quote(self, symbol: str, source: DataSource) -> Quote:
-        if source == DataSource.YAHOO_FINANCE:
-            return await self._quote_yahoo(symbol)
-        elif source == DataSource.ALPHA_VANTAGE:
-            return await self._quote_alpha_vantage(symbol)
-        elif source == DataSource.FINNHUB:
-            return await self._quote_finnhub(symbol)
-        elif source == DataSource.BYMA:
-            return await self._quote_byma(symbol)
-        elif source == DataSource.BINANCE:
-            return await self._quote_binance(symbol)
-        raise NotImplementedError(f"Fuente no implementada: {source}")
-
-    async def _fetch_ohlcv(self, symbol: str, timeframe: str,
-                            start, end, source: DataSource) -> OHLCV:
-        if source == DataSource.YAHOO_FINANCE:
-            return await self._ohlcv_yahoo(symbol, timeframe, start, end)
-        elif source == DataSource.ALPHA_VANTAGE:
-            return await self._ohlcv_alpha_vantage(symbol, timeframe, start, end)
-        raise NotImplementedError(f"OHLCV no implementado para: {source}")
-
-    # ── Yahoo Finance ──────────────────────────────────────────────────────────
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=4))
-    async def _quote_yahoo(self, symbol: str) -> Quote:
-
-        loop = asyncio.get_event_loop()
-
-        ticker = await loop.run_in_executor(
-        None,
-        lambda: yf.Ticker(symbol)
-    )
-
-        info = await loop.run_in_executor(
-        None,
-        lambda: ticker.info
-    )
+        self.ohlcv_sources = [
+            DataSource.ALPHAVANTAGE,
+            DataSource.FINNHUB,
+            DataSource.YAHOO,
+        ]
 
         log.info(
-            "yahoo_info",
-            symbol=symbol,
-            info=info
-    )
-
-        if not info:
-            raise ValueError(
-                f"No data returned by Yahoo for {symbol}"
-            )
-
-        price = (
-            info.get("currentPrice")
-            or info.get("regularMarketPrice")
+            "market_provider_initialized",
+            redis=bool(self.redis),
         )
 
-        if not price:
-            raise ValueError(
-                f"No price found for {symbol}"
-        )
-
-        return Quote(
-            symbol=symbol,
-            price=price,
-            open=info.get("regularMarketOpen", price),
-            high=info.get("dayHigh", price),
-            low=info.get("dayLow", price),
-            close=info.get("previousClose", price),
-            volume=info.get("regularMarketVolume", 0),
-            timestamp=datetime.now(),
-            source=DataSource.YAHOO_FINANCE,
-            currency=info.get("currency", "USD"),
-            change_pct=info.get("regularMarketChangePercent"),
-        )
-
-    async def _ohlcv_yahoo(self, symbol: str, timeframe: str, start, end) -> OHLCV:
-        # Mapear timeframes internos a yfinance
-        tf_map = {"1m":"1m","5m":"5m","15m":"15m","1h":"1h","4h":"1h","1d":"1d","1w":"1wk","1M":"1mo"}
-        yf_period = tf_map.get(timeframe, "1d")
-
-        loop = asyncio.get_event_loop()
-        ticker = yf.Ticker(symbol)
-        df = await loop.run_in_executor(None, lambda: ticker.history(
-            period="1y" if not start else None,
-            start=start, end=end,
-            interval=yf_period,
-        ))
-        df = df.rename(columns={"Open":"open","High":"high","Low":"low","Close":"close","Volume":"volume"})
-        df.index.name = "time"
-        df = df.reset_index()
-
-        return OHLCV(symbol=symbol, timeframe=timeframe, data=df, source=DataSource.YAHOO_FINANCE)
-
-    # ── Alpha Vantage ──────────────────────────────────────────────────────────
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=8))
-    async def _quote_alpha_vantage(self, symbol: str) -> Quote:
-        url = "https://www.alphavantage.co/query"
-        params = {"function": "GLOBAL_QUOTE", "symbol": symbol, "apikey": settings.ALPHA_VANTAGE_KEY}
-        r = await self._http.get(url, params=params)
-        print("ALPHA STATUS:", r.status_code)
-        print("ALPHA RESPONSE:", r.text)
-        r.raise_for_status()
-        data = r.json().get("Global Quote", {})
-        price = float(data.get("05. price", 0))
-        if price <= 0:
-            raise ValueError(
-                f"AlphaVantage devolvió precio inválido para {symbol}"
-        )
-        return Quote(
-            symbol=symbol,
-            price=price,
-            open=float(data.get("02. open", price)),
-            high=float(data.get("03. high", price)),
-            low=float(data.get("04. low", price)),
-            close=float(data.get("08. previous close", price)),
-            volume=float(data.get("06. volume", 0)),
-            timestamp=datetime.now(),
-            source=DataSource.ALPHA_VANTAGE,
-            change_pct=float(data.get("10. change percent", "0").replace("%", "")),
-        )
-
-    async def _ohlcv_alpha_vantage(self, symbol: str, timeframe: str, start, end) -> OHLCV:
-        func_map = {"1d": "TIME_SERIES_DAILY", "1w": "TIME_SERIES_WEEKLY"}
-        function = func_map.get(timeframe, "TIME_SERIES_DAILY")
-        url = "https://www.alphavantage.co/query"
-        params = {"function": function, "symbol": symbol, "outputsize": "compact", "apikey": settings.ALPHA_VANTAGE_KEY}
-        r = await self._http.get(url, params=params)
-        print("OHLCV STATUS:", r.status_code)
-        print("OHLCV RESPONSE:", r.text[:1000])
-        r.raise_for_status()
-        data = r.json()
-        if "Note" in data:
-            raise ValueError(
-                f"AlphaVantage limit reached: {data['Note']}"
-            )
-
-        if "Error Message" in data:
-            raise ValueError(
-                f"AlphaVantage error: {data['Error Message']}"
-            )
-        ts_keys = [k for k in data.keys() if "Time Series" in k]
-        if not ts_keys:
-            raise ValueError(
-                f"No Time Series encontrada. Respuesta: {data}"
-            )
-        ts_key = ts_keys[0]
-
-        raw = data[ts_key]
-
-        rows = []
-        for date_str, vals in raw.items():
-            rows.append({
-                "time": pd.Timestamp(date_str),
-                "open": float(vals["1. open"]),
-                "high": float(vals["2. high"]),
-                "low": float(vals["3. low"]),
-                "close": float(vals["4. close"]),
-                "volume": float(vals["5. volume"]),
-            })
-        df = pd.DataFrame(rows).sort_values("time").reset_index(drop=True)
-        return OHLCV(symbol=symbol, timeframe=timeframe, data=df, source=DataSource.ALPHA_VANTAGE)
-
-    # ── Finnhub ───────────────────────────────────────────────────────────────
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=4))
-    async def _quote_finnhub(self, symbol: str) -> Quote:
-        url = f"https://finnhub.io/api/v1/quote"
-        params = {"symbol": symbol, "token": settings.FINNHUB_KEY}
-        r = await self._http.get(url, params=params)
-        print("FINNHUB STATUS:", r.status_code)
-        print("FINNHUB RESPONSE:", r.text)
-        r.raise_for_status()
-        d = r.json()
-        if d["c"] <= 0:
-            raise ValueError(
-                f"Finnhub devolvió precio inválido para {symbol}"
-            )
-        return Quote(
-            symbol=symbol,
-            price=d["c"],
-            open=d["o"], high=d["h"], low=d["l"], close=d["pc"],
-            volume=0,
-            timestamp=datetime.fromtimestamp(d["t"]),
-            source=DataSource.FINNHUB,
-            change_pct=((d["c"] - d["pc"]) / d["pc"] * 100) if d["pc"] else None,
-        )
-
-    # ── BYMA (Argentina) ──────────────────────────────────────────────────────
-    async def _quote_byma(self, symbol: str) -> Quote:
-        """Endpoint público de BYMA para cotizaciones argentinas."""
-        url = f"https://open.byma.com.ar/api/cotizaciones/{symbol}"
-        headers = {"X-AUTH-TOKEN": settings.BYMA_KEY}
-        r = await self._http.get(url, headers=headers)
-        r.raise_for_status()
-        d = r.json()
-        return Quote(
-            symbol=symbol,
-            price=d.get("ultimoPrecio", 0),
-            open=d.get("apertura", 0),
-            high=d.get("maximo", 0),
-            low=d.get("minimo", 0),
-            close=d.get("cierreAnterior", 0),
-            volume=d.get("cantidadNominal", 0),
-            timestamp=datetime.now(),
-            source=DataSource.BYMA,
-            currency="ARS",
-            change_pct=d.get("variacion"),
-        )
-
-    # ── Binance (Crypto) ──────────────────────────────────────────────────────
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=4))
-    async def _quote_binance(self, symbol: str) -> Quote:
-        url = "https://api.binance.com/api/v3/ticker/24hr"
-        params = {"symbol": symbol.replace("-", "").upper()}
-        r = await self._http.get(url, params=params)
-        r.raise_for_status()
-        d = r.json()
-        return Quote(
-            symbol=symbol,
-            price=float(d["lastPrice"]),
-            open=float(d["openPrice"]),
-            high=float(d["highPrice"]),
-            low=float(d["lowPrice"]),
-            close=float(d["prevClosePrice"]),
-            volume=float(d["volume"]),
-            timestamp=datetime.now(),
-            source=DataSource.BINANCE,
-            currency="USD",
-            change_pct=float(d["priceChangePercent"]),
-        )
-
-    async def close(self):
-        await self._http.aclose()
