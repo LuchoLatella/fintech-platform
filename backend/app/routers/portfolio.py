@@ -342,7 +342,7 @@ async def get_portfolio_health(
             )
 
             returns = (
-                ohlcv.data
+                ohlcv
                 .set_index("time")["close"]
                 .pct_change()
                 .dropna()
@@ -632,10 +632,24 @@ async def get_risk_metrics(
             log.info(
                 "risk_fetch_ohlcv_ok",
                 symbol=asset.symbol,
-                rows=len(ohlcv.data)
+                rows=len(ohlcv)
             )
+            if ohlcv.empty:
+                log.warning(
+                    "risk_no_market_data",
+                    symbol=asset.symbol,
+                )
+                continue
 
-            closes = ohlcv.data.set_index("time")["close"]
+            if "time" not in ohlcv.columns:
+                log.warning(
+                    "risk_invalid_dataframe",
+                    symbol=asset.symbol,
+                    columns=list(ohlcv.columns),
+                )
+                continue
+
+            closes = ohlcv.set_index("time")["close"]
 
             returns = closes.pct_change().dropna()
 
@@ -701,12 +715,12 @@ async def get_risk_metrics(
 
         print("=" * 80)
         print("SPY OHLCV")
-        print(spy_ohlcv.data.head())
-        print("ROWS:", len(spy_ohlcv.data))
+        print(spy_ohlcv.head())
+        print("ROWS:", len(spy_ohlcv))
         print("=" * 80)
 
         benchmark_returns = (
-            spy_ohlcv.data
+            spy_ohlcv
             .set_index("time")["close"]
             .pct_change()
             .dropna()
