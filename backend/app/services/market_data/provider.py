@@ -224,7 +224,7 @@ class MarketDataProvider:
 
         url = ( "https://www.alphavantage.co/query" "?function=GLOBAL_QUOTE" f"&symbol={symbol}" f"&apikey={self.alpha_key}" )
 
-        response = self.http.get(url) 
+        response = await self.http.get(url) 
         response.raise_for_status() 
         data = response.json() 
         quote = data.get("Global Quote")
@@ -242,7 +242,7 @@ class MarketDataProvider:
 
         url = ( "https://finnhub.io/api/v1/quote" f"?symbol={symbol}" f"&token={self.finnhub_key}" )
 
-        response = self.http.get(url)
+        response = await self.http.get(url)
         response.raise_for_status()
         data = response.json()
         price = data.get("c")
@@ -336,7 +336,7 @@ class MarketDataProvider:
     
         url = ( "https://www.alphavantage.co/query" "?function=TIME_SERIES_DAILY_ADJUSTED" f"&symbol={symbol}" "&outputsize=full" f"&apikey={self.alpha_key}" )
 
-        response = self.http.get(url)
+        response = await self.http.get(url)
 
         response.raise_for_status()
 
@@ -366,7 +366,7 @@ class MarketDataProvider:
         df = pd.DataFrame(rows)
 
         df.sort_values( "time", inplace=True, )
-        df.set_index( "time", inplace=True, )
+        
 
         return df
 
@@ -382,7 +382,7 @@ class MarketDataProvider:
 
         url = ( "https://finnhub.io/api/v1/stock/candle" f"?symbol={symbol}" "&resolution=D" f"&from={start}" f"&to={end}" f"&token={self.finnhub_key}" )
 
-        response = self.http.get(url) 
+        response = await self.http.get(url) 
         response.raise_for_status() 
         data = response.json()
 
@@ -400,7 +400,7 @@ class MarketDataProvider:
             }
         )
 
-        df.set_index("time", inplace=True)
+        
 
         return df
 
@@ -416,10 +416,12 @@ class MarketDataProvider:
 
         if df.empty:
             raise ValueError(f"No se pudo obtener OHLCV de Yahoo Finance para {symbol}")
+        
+        df = df.reset_index()
     
         df = df.rename( columns={ "Open": "open", "High": "high", "Low": "low", "Close": "close", "Volume": "volume", } )
 
-        df.index.name = "time"
+        # df.index.name = "time"
 
         return df[ [ "open", "high", "low", "close", "volume", ] ]
 
