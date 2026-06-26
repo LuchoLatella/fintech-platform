@@ -90,7 +90,7 @@ services:
     depends_on:
       - postgres
       - redis
-    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4
+    command: celery -A app.workers.celery_app beat \--loglevel=info \--schedule=/app/celerybeat/celerybeat-schedule
 
   # ─── Celery Beat (scheduler de tareas periódicas) ─────────────────────────
   celery_beat:
