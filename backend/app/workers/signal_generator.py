@@ -1,7 +1,7 @@
-"""
+﻿"""
 Worker: Signal Generator
 Task Celery que recorre todos los activos del watchlist global
-y genera señales IA actualizadas cada 10 minutos.
+y genera seÃ±ales IA actualizadas cada 10 minutos.
 """
 import asyncio
 from datetime import datetime, timedelta
@@ -14,7 +14,7 @@ log = structlog.get_logger()
 
 @shared_task(name="app.workers.signal_generator.generate_signals", bind=True, max_retries=2)
 def generate_signals(self):
-    """Genera señales para todos los activos activos del sistema."""
+    """Genera seÃ±ales para todos los activos activos del sistema."""
     try:
         asyncio.get_event_loop().run_until_complete(_generate_signals_async())
     except Exception as exc:
@@ -24,7 +24,7 @@ def generate_signals(self):
 
 @shared_task(name="app.workers.signal_generator.cleanup_expired_signals")
 def cleanup_expired_signals():
-    """Invalida señales vencidas o superadas por el mercado."""
+    """Invalida seÃ±ales vencidas o superadas por el mercado."""
     asyncio.get_event_loop().run_until_complete(_cleanup_async())
 
 
@@ -42,7 +42,7 @@ async def _generate_signals_async():
     provider = MarketDataProvider()
 
     async with AsyncSessionLocal() as db:
-        # Obtener activos activos para análisis
+        # Obtener activos activos para anÃ¡lisis
         result = await db.execute(
             select(Asset).where(Asset.is_active == True).limit(200)
         )
@@ -58,18 +58,21 @@ async def _generate_signals_async():
                     continue
 
                 quote = await provider.get_quote(symbol)
+                if not quote or quote <= 0:
+                    continue
+
                 technical = engine.analyze(ohlcv.data, symbol, "1d")
                 signal = await signal_engine.generate_signal(
                     symbol=symbol,
                     technical=technical,
-                    current_price=quote.price,
+                    current_price=float(quote),
                 )
 
-                # Solo guardar señales con confianza mínima
+                # Solo guardar seÃ±ales con confianza mÃ­nima
                 if signal.confidence < 55:
                     continue
 
-                # Invalidar señal anterior del mismo activo
+                # Invalidar seÃ±al anterior del mismo activo
                 from sqlalchemy import update
                 await db.execute(
                     update(AISignal)
@@ -78,7 +81,7 @@ async def _generate_signals_async():
                             invalidation_reason="superseded_by_new_signal")
                 )
 
-                # Crear nueva señal
+                # Crear nueva seÃ±al
                 new_signal = AISignal(
                     asset_id=asset.id,
                     signal_type=signal.signal_type,

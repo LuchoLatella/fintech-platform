@@ -1,8 +1,6 @@
-version: "3.9"
+﻿services:
 
-services:
-
-  # ─── Base de datos principal ──────────────────────────────────────────────
+  # â”€â”€â”€ Base de datos principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   postgres:
     image: timescale/timescaledb:latest-pg15
     container_name: fintech_postgres
@@ -13,16 +11,16 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/alembic/versions:/docker-entrypoint-initdb.d:ro
+      - ./database/init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fintech}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ─── Redis (caché + colas Celery) ─────────────────────────────────────────
+  # â”€â”€â”€ Redis (cachÃ© + colas Celery) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   redis:
     image: redis:7-alpine
     container_name: fintech_redis
@@ -38,7 +36,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─── Backend FastAPI ──────────────────────────────────────────────────────
+  # â”€â”€â”€ Backend FastAPI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   api:
     build:
       context: ./backend
@@ -47,7 +45,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_URL: ${REDIS_URL}
       SECRET_KEY: ${SECRET_KEY}
       ALPHA_VANTAGE_KEY: ${ALPHA_VANTAGE_KEY}
       FINNHUB_KEY: ${FINNHUB_KEY}
@@ -69,7 +67,7 @@ services:
         condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # ─── Celery Worker (tareas asíncronas) ───────────────────────────────────
+  # â”€â”€â”€ Celery Worker (tareas asÃ­ncronas) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   celery_worker:
     build:
       context: ./backend
@@ -78,7 +76,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_URL: ${REDIS_URL}
       SECRET_KEY: ${SECRET_KEY}
       ALPHA_VANTAGE_KEY: ${ALPHA_VANTAGE_KEY}
       FINNHUB_KEY: ${FINNHUB_KEY}
@@ -92,7 +90,7 @@ services:
       - redis
     command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4
 
-  # ─── Celery Beat (scheduler de tareas periódicas) ─────────────────────────
+  # â”€â”€â”€ Celery Beat (scheduler de tareas periÃ³dicas) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   celery_beat:
     build:
       context: ./backend
@@ -100,6 +98,7 @@ services:
     container_name: fintech_beat
     restart: unless-stopped
     environment:
+      SECRET_KEY: ${SECRET_KEY}
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
     volumes:
@@ -109,7 +108,7 @@ services:
       - redis
     command: celery -A app.workers.celery_app beat --loglevel=info --schedule=/app/celerybeat/celerybeat-schedule
 
-  # ─── Frontend Next.js ─────────────────────────────────────────────────────
+  # â”€â”€â”€ Frontend Next.js â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  # frontend:
   #   build:
   #     context: ./frontend
@@ -129,7 +128,7 @@ services:
   #     - api
   #   command: npm run dev
 
-  # ─── Flower (monitor de Celery, solo dev) ────────────────────────────────
+  # â”€â”€â”€ Flower (monitor de Celery, solo dev) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   flower:
     build:
       context: ./backend
@@ -149,3 +148,4 @@ volumes:
   postgres_data:
   redis_data:
   celery_beat_data:
+

@@ -1,12 +1,14 @@
-"""
+﻿"""
 Worker: Price Fetcher
 Tareas Celery para obtener precios, datos fundamentales y datos de Argentina.
 """
 import asyncio
-from datetime import datetime
+from datetime import date
 
+import httpx
 import structlog
 from celery import shared_task
+from sqlalchemy import select, text
 
 log = structlog.get_logger()
 
@@ -45,14 +47,11 @@ def snapshot_all_portfolios():
 async def _fetch_prices_async():
     """Obtiene y guarda precios de activos en watchlists activas."""
     from app.database import AsyncSessionLocal
-    from app.models.asset import Asset
     from app.services.market_data.provider import MarketDataProvider
-    from sqlalchemy import select, text
 
     provider = MarketDataProvider()
 
     async with AsyncSessionLocal() as db:
-        # Obtener activos únicos en watchlists
         result = await db.execute(
             text("""
                 SELECT DISTINCT a.id, a.symbol, ac.code as asset_class
@@ -92,24 +91,24 @@ async def _fetch_prices_async():
                             "close": float(row["close"]),
                             "volume": float(row.get("volume", 0)),
                             "source": ohlcv.source.value,
-                        }
+                        },
                     )
+                await db.commit()
                 saved += 1
             except Exception as e:
+                await db.rollback()
                 log.warning("price_save_failed", symbol=symbol, error=str(e))
                 continue
 
-        await db.commit()
         log.info("prices_saved", count=saved)
 
     await provider.close()
 
 
 async def _fetch_crypto_async():
-    """Precios de criptomonedas (24/7 desde Binance)."""
+    """Precios de criptomonedas (24/7)."""
     from app.database import AsyncSessionLocal
-    from app.services.market_data.provider import MarketDataProvider, DataSource
-    from sqlalchemy import text
+    from app.services.market_data.provider import MarketDataProvider
 
     CRYPTO_SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT"]
     provider = MarketDataProvider()
@@ -117,19 +116,22 @@ async def _fetch_crypto_async():
     async with AsyncSessionLocal() as db:
         for symbol in CRYPTO_SYMBOLS:
             try:
-                quote = await provider._quote_binance(symbol)
-                await db.execute(
-                    text("""
-                        INSERT INTO price_ticks (time, asset_id, price, source)
-                        SELECT NOW(), id, :price, 'binance'
-                        FROM assets WHERE symbol = :symbol AND is_active = TRUE
-                        ON CONFLICT DO NOTHING
-                    """),
-                    {"price": quote.price, "symbol": symbol}
-                )
+                yahoo_symbol = symbol.replace("USDT", "-USD") if symbol.endswith("USDT") else symbol
+                price = await provider.get_quote(yahoo_symbol)
+                if price and price > 0:
+                    await db.execute(
+                        text("""
+                            INSERT INTO price_ticks (time, asset_id, price, source)
+                            SELECT NOW(), id, :price, 'yahoo'
+                            FROM assets WHERE symbol IN (:symbol, :yahoo_symbol) AND is_active = TRUE
+                            ON CONFLICT DO NOTHING
+                        """),
+                        {"price": float(price), "symbol": symbol, "yahoo_symbol": yahoo_symbol},
+                    )
+                    await db.commit()
             except Exception as e:
+                await db.rollback()
                 log.warning("crypto_fetch_failed", symbol=symbol, error=str(e))
-        await db.commit()
 
     await provider.close()
 
@@ -138,18 +140,17 @@ async def _fetch_argentina_async():
     """Datos económicos argentinos: dólar, riesgo país, inflación."""
     from app.database import AsyncSessionLocal
     from app.services.argentina.dolar import ArgentinaService
-    from sqlalchemy import text
 
     svc = ArgentinaService()
     async with AsyncSessionLocal() as db:
         try:
             rates = await svc.get_dolar_rates()
             indicators = [
-                ("dolar_oficial",   rates.oficial,    "ARS"),
-                ("dolar_mep",       rates.mep,        "ARS"),
-                ("dolar_ccl",       rates.ccl,        "ARS"),
-                ("dolar_blue",      rates.blue,       "ARS"),
-                ("dolar_tarjeta",   rates.tarjeta,    "ARS"),
+                ("dolar_oficial", rates.oficial, "ARS"),
+                ("dolar_mep", rates.mep, "ARS"),
+                ("dolar_ccl", rates.ccl, "ARS"),
+                ("dolar_blue", rates.blue, "ARS"),
+                ("dolar_tarjeta", rates.tarjeta, "ARS"),
             ]
             for code, value, unit in indicators:
                 if value:
@@ -158,18 +159,20 @@ async def _fetch_argentina_async():
                             INSERT INTO arg_economic_indicators (indicator_code, indicator_name, value, unit, period, source)
                             VALUES (:code, :code, :value, :unit, CURRENT_DATE, 'bcra_ambito')
                         """),
-                        {"code": code, "value": value, "unit": unit}
+                        {"code": code, "value": value, "unit": unit},
                     )
+            await db.commit()
         except Exception as e:
+            await db.rollback()
             log.error("argentina_fetch_failed", error=str(e))
 
         try:
             bcra = await svc.get_bcra_data()
             bcra_indicators = [
-                ("tasa_politica_monetaria",  bcra.tasa_politica_monetaria, "%"),
-                ("inflacion_mensual",         bcra.inflacion_mensual,       "%"),
-                ("inflacion_interanual",      bcra.inflacion_interanual,    "%"),
-                ("reservas_bcra_usd",         bcra.reservas_usd_mm,        "USD_MM"),
+                ("tasa_politica_monetaria", bcra.tasa_politica_monetaria, "%"),
+                ("inflacion_mensual", bcra.inflacion_mensual, "%"),
+                ("inflacion_interanual", bcra.inflacion_interanual, "%"),
+                ("reservas_bcra_usd", bcra.reservas_usd_mm, "USD_MM"),
             ]
             for code, value, unit in bcra_indicators:
                 if value:
@@ -178,38 +181,41 @@ async def _fetch_argentina_async():
                             INSERT INTO arg_economic_indicators (indicator_code, indicator_name, value, unit, period, source)
                             VALUES (:code, :code, :value, :unit, CURRENT_DATE, 'bcra')
                         """),
-                        {"code": code, "value": value, "unit": unit}
+                        {"code": code, "value": value, "unit": unit},
                     )
+            await db.commit()
         except Exception as e:
+            await db.rollback()
             log.warning("bcra_save_failed", error=str(e))
-
-        await db.commit()
 
         # Refrescar vista materializada
         try:
             await db.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY arg_latest_indicators"))
             await db.commit()
         except Exception:
-            pass
+            await db.rollback()
 
     await svc.close()
 
 
 async def _fetch_fundamental_async():
     """Obtiene datos fundamentales desde Financial Modeling Prep."""
-    from app.database import AsyncSessionLocal
     from app.config import settings
-    from sqlalchemy import text, select
-    import httpx
+    from app.database import AsyncSessionLocal
 
     if not settings.FMP_KEY:
         log.warning("fmp_key_not_configured")
         return
 
     async with AsyncSessionLocal() as db:
-        # Activos de tipo stock o etf
         result = await db.execute(
-            text("SELECT a.id, a.symbol FROM assets a JOIN asset_classes ac ON a.asset_class_id = ac.id WHERE ac.code IN ('stock','etf') AND a.is_active = TRUE LIMIT 50")
+            text("""
+                SELECT a.id, a.symbol
+                FROM assets a
+                JOIN asset_classes ac ON a.asset_class_id = ac.id
+                WHERE ac.code IN ('stock', 'etf') AND a.is_active = TRUE
+                LIMIT 50
+            """)
         )
         assets = result.fetchall()
 
@@ -233,8 +239,8 @@ async def _fetch_fundamental_async():
                                 (:asset_id, CURRENT_DATE, 'TTM', :pe, :pb, :roe, :roa,
                                  :dte, :dy, :rg, 'fmp')
                             ON CONFLICT (asset_id, period, period_type) DO UPDATE
-                            SET pe_ratio=EXCLUDED.pe_ratio, pb_ratio=EXCLUDED.pb_ratio,
-                                roe=EXCLUDED.roe, debt_to_equity=EXCLUDED.debt_to_equity
+                            SET pe_ratio = EXCLUDED.pe_ratio, pb_ratio = EXCLUDED.pb_ratio,
+                                roe = EXCLUDED.roe, debt_to_equity = EXCLUDED.debt_to_equity
                         """),
                         {
                             "asset_id": str(asset_id),
@@ -245,22 +251,22 @@ async def _fetch_fundamental_async():
                             "dte": d.get("debtEquityRatioTTM"),
                             "dy": d.get("dividendYieldTTM"),
                             "rg": d.get("revenueGrowthTTM"),
-                        }
+                        },
                     )
+                    await db.commit()
                 except Exception as e:
+                    await db.rollback()
                     log.warning("fundamental_failed", symbol=symbol, error=str(e))
-            await db.commit()
+
     log.info("fundamental_data_updated")
 
 
 async def _snapshot_portfolios_async():
     """Crea snapshots diarios de todos los portafolios."""
     from app.database import AsyncSessionLocal
+    from app.models.asset import Asset
     from app.models.portfolio import Portfolio, PortfolioPosition, PortfolioSnapshot
     from app.services.market_data.provider import MarketDataProvider
-    from app.models.asset import Asset
-    from sqlalchemy import select
-    from datetime import date
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(Portfolio))
@@ -282,10 +288,17 @@ async def _snapshot_portfolios_async():
                 for pos, asset in rows:
                     try:
                         quote = await provider.get_quote(asset.symbol)
-                        mv = float(pos.quantity) * quote.price
-                        total += mv
-                        positions_snapshot.append({"symbol": asset.symbol, "market_value": mv, "quantity": float(pos.quantity)})
-                    except:
+                        if quote is not None:
+                            mv = float(pos.quantity) * float(quote)
+                            total += mv
+                            positions_snapshot.append(
+                                {
+                                    "symbol": asset.symbol,
+                                    "market_value": mv,
+                                    "quantity": float(pos.quantity),
+                                }
+                            )
+                    except Exception:
                         pass
 
                 snapshot = PortfolioSnapshot(
@@ -295,10 +308,10 @@ async def _snapshot_portfolios_async():
                     positions_data={"positions": positions_snapshot},
                 )
                 db.add(snapshot)
+                await db.commit()
             except Exception as e:
+                await db.rollback()
                 log.warning("snapshot_failed", portfolio_id=str(portfolio.id), error=str(e))
-
-        await db.commit()
 
     await provider.close()
     log.info("portfolio_snapshots_created", count=len(portfolios))

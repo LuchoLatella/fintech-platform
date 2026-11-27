@@ -21,3 +21,5 @@ Thumbs.db
 # IDEs
 .vscode/
 .idea/
+.env
+.venv/

@@ -15,7 +15,7 @@ asyncpg==0.29.0
 psycopg2-binary==2.9.9
 psycopg[binary]==3.2.9
 alembic==1.13.1
-redis[hiredis]==5.0.4
+redis[hiredis]>=6.1.0
 
 # ── Autenticación y seguridad ─────────────────────────────────────────────────
 python-jose[cryptography]==3.3.0
@@ -39,6 +39,8 @@ python-binance==1.0.19
 pandas==2.2.2
 numpy==1.26.4
 ta==0.11.0
+pandas-ta==0.4.71b0
+pandas-ta==0.4.71b0
 # xgboost==2.0.3
 # lightgbm==4.3.0
 # prophet==1.1.5
@@ -84,3 +86,4 @@ orjson==3.10.3                 # JSON más rápido
 tenacity==8.3.0                # retry logic para APIs
 cachetools==5.3.3
 greenlet>=3.0.3
+
